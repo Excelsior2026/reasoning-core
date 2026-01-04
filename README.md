@@ -1,61 +1,22 @@
 # Reasoning Core 🧠
 
-**Universal reasoning extraction engine for building intelligent knowledge graphs from any domain**
+**Universal reasoning extraction engine - Transform expertise into intelligent knowledge graphs**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
----
+Reasoning Core is a Python library that extracts expert reasoning patterns from text and builds intelligent knowledge graphs. It transforms unstructured expertise into structured, queryable knowledge.
 
-## 🌟 What is Reasoning Core?
+## ✨ Features
 
-Reasoning Core is a domain-agnostic library that extracts **reasoning patterns** and builds **knowledge graphs** from text, lectures, meetings, or any content. It goes beyond simple transcription or summarization—it captures *how experts think* and connects ideas the way humans naturally reason.
-
-### The Problem
-
-Traditional tools capture *what* is said (transcription) or *summarize* content, but they miss the most valuable part: **how concepts connect and how experts reason through problems**.
-
-### The Solution
-
-Reasoning Core:
-- 🧩 **Extracts concepts** (entities, ideas, terms)
-- 🔗 **Maps relationships** (causes, treats, requires, etc.)
-- 🧠 **Builds reasoning chains** (A → B → C → D)
-- 📊 **Creates knowledge graphs** (visual concept maps)
-- ❓ **Generates questions** (test understanding)
-- 🔄 **Cross-references** (links to prior knowledge)
-
----
-
-## 🎯 Use Cases
-
-### Medical Education
-- Clinical reasoning chains (symptoms → diagnosis → treatment)
-- Pathophysiology connections
-- Pharmacology relationships
-- **Powers: [COGNISCRIBE](https://github.com/Excelsior2026/COGNISCRIBE)**
-
-### Business Training
-- Sales process workflows
-- Objection handling patterns
-- Value proposition mapping
-- Strategic frameworks
-
-### Legal/Compliance
-- Case law precedents
-- Regulatory requirement chains
-- Compliance workflows
-
-### Engineering
-- System architecture relationships
-- Debugging reasoning patterns
-- Design decision trees
-
-### General Education
-- Any subject with conceptual relationships
-- Multi-domain learning support
-
----
+- **🔍 Concept Extraction**: Identify domain-specific concepts automatically
+- **🔗 Relationship Mapping**: Discover connections between concepts
+- **⛓️ Reasoning Chains**: Build step-by-step reasoning patterns
+- **📊 Knowledge Graphs**: Create visual, queryable knowledge structures
+- **🎯 Multi-Domain Support**: Medical, business, legal, engineering, and custom domains
+- **🔌 Plugin Architecture**: Extensible domain-specific reasoning
+- **🚀 Production Ready**: Type-safe, tested, documented
 
 ## 🚀 Quick Start
 
@@ -68,206 +29,272 @@ pip install reasoning-core
 ### Basic Usage
 
 ```python
-from reasoning_core.domains.medical_domain import MedicalDomain
+from reasoning_core import ReasoningAPI, MedicalDomain
 
-# Initialize domain
-domain = MedicalDomain()
+# Initialize with a domain
+api = ReasoningAPI(domain=MedicalDomain())
 
-# Analyze text
+# Process text
 text = """
-Patient presents with chest pain and dyspnea. 
-We should consider MI, PE, or pneumonia in the differential.
-Order ECG, troponin, and D-dimer. If troponin elevated, 
-treat with aspirin and heparin.
+Patient presents with chest pain and shortness of breath.
+ECG shows ST elevation. Troponin is elevated.
+Diagnosis: Myocardial infarction.
+Treatment: Aspirin, heparin, and catheterization.
 """
 
-# Extract concepts
-concepts = domain.extract_concepts(text)
-print(f"Found {len(concepts)} concepts")
+result = api.process_text(text)
 
-# Identify relationships
-relationships = domain.identify_relationships(concepts)
-print(f"Found {len(relationships)} relationships")
-
-# Build reasoning chains
-chains = domain.build_reasoning_chains(concepts, relationships)
-print(f"Identified {len(chains)} reasoning patterns")
-
-# Generate questions
-questions = domain.generate_questions(concepts, chains)
-for q in questions:
-    print(f"❓ {q}")
+# Access extracted reasoning
+print(f"Concepts: {len(result['concepts'])}")
+print(f"Relationships: {len(result['relationships'])}")
+print(f"Reasoning chains: {len(result['reasoning_chains'])}")
+print(f"Generated questions: {result['questions']}")
 ```
 
----
+### Domain-Specific Extraction
+
+```python
+# Medical Domain
+from reasoning_core import MedicalDomain
+medical_api = ReasoningAPI(domain=MedicalDomain())
+
+# Business Domain
+from reasoning_core import BusinessDomain
+business_api = ReasoningAPI(domain=BusinessDomain())
+
+# Generic (no domain)
+generic_api = ReasoningAPI()
+```
+
+## 📚 Core Components
+
+### Concept Extractor
+
+Extracts domain-specific concepts from text:
+
+```python
+from reasoning_core import ConceptExtractor, MedicalDomain
+
+extractor = ConceptExtractor(domain=MedicalDomain())
+concepts = extractor.extract("Patient has fever and cough")
+
+for concept in concepts:
+    print(f"{concept.text} ({concept.type}) - confidence: {concept.confidence}")
+```
+
+### Relationship Mapper
+
+Identifies relationships between concepts:
+
+```python
+from reasoning_core import RelationshipMapper
+
+mapper = RelationshipMapper(domain=MedicalDomain())
+relationships = mapper.map_relationships(concepts, text)
+
+for rel in relationships:
+    print(f"{rel.source.text} --[{rel.type}]--> {rel.target.text}")
+```
+
+### Reasoning Chain Builder
+
+Builds step-by-step reasoning patterns:
+
+```python
+from reasoning_core import ReasoningChainBuilder
+
+builder = ReasoningChainBuilder(domain=MedicalDomain())
+chains = builder.build_chains(concepts, relationships)
+
+for chain in chains:
+    print(f"Chain type: {chain.type}")
+    for step in chain.steps:
+        print(f"  {step.action}: {step.concept.text} - {step.rationale}")
+```
+
+### Knowledge Graph
+
+Create and query knowledge graphs:
+
+```python
+from reasoning_core.graph import KnowledgeGraph, Node, Edge
+
+graph = KnowledgeGraph()
+
+# Add nodes
+graph.add_node(Node(id="fever", type="symptom", label="Fever"))
+graph.add_node(Node(id="infection", type="disease", label="Infection"))
+
+# Add edges
+graph.add_edge(Edge(source_id="fever", target_id="infection", type="indicates"))
+
+# Query
+path = graph.find_path("fever", "infection")
+print(f"Path: {path}")
+
+# Export
+print(graph.to_json())
+```
+
+## 🎯 Domain Plugins
+
+### Medical Domain
+
+Clinical reasoning for medical education:
+
+```python
+from reasoning_core import MedicalDomain
+
+domain = MedicalDomain()
+print(domain.get_reasoning_patterns())
+# ['symptom_to_differential', 'differential_to_workup', 
+#  'workup_to_diagnosis', 'diagnosis_to_treatment']
+```
+
+**Concepts extracted:**
+- Symptoms (pain, fever, cough)
+- Diseases (MI, pneumonia, COPD)
+- Treatments (aspirin, antibiotics)
+- Tests (ECG, CBC, troponin)
+- Procedures (intubation, catheterization)
+
+### Business Domain
+
+Business strategy and sales reasoning:
+
+```python
+from reasoning_core import BusinessDomain
+
+domain = BusinessDomain()
+print(domain.get_reasoning_patterns())
+# ['problem_to_solution', 'objection_to_response',
+#  'feature_to_benefit', 'pain_to_value']
+```
+
+**Concepts extracted:**
+- Strategies (upselling, objection handling)
+- Metrics (conversion rate, LTV, ROI)
+- Frameworks (MEDDIC, BANT, SPIN)
+- Activities (prospecting, discovery, closing)
+- Pain points (inefficiency, cost, complexity)
+
+### Custom Domains
+
+Create your own domain plugin:
+
+```python
+from reasoning_core.plugins import BaseDomain
+
+class MyCustomDomain(BaseDomain):
+    def get_name(self) -> str:
+        return "custom"
+    
+    def extract_concepts(self, text: str):
+        # Your custom extraction logic
+        pass
+    
+    def identify_relationships(self, concepts, text):
+        # Your custom relationship logic
+        pass
+    
+    # Implement other required methods...
+
+api = ReasoningAPI(domain=MyCustomDomain())
+```
 
 ## 🏗️ Architecture
 
-### Domain Plugin System
-
-```python
-from reasoning_core.domains.base_domain import BaseDomain
-
-class MyCustomDomain(BaseDomain):
-    def get_domain_name(self) -> str:
-        return "my_domain"
-    
-    def get_terminology_mapping(self) -> Dict[str, List[str]]:
-        return {
-            "concept_type_1": ["term1", "term2"],
-            "concept_type_2": ["term3", "term4"],
-        }
-    
-    def get_reasoning_patterns(self) -> List[ReasoningPattern]:
-        return [
-            ReasoningPattern(
-                name="pattern_name",
-                description="Pattern description",
-                steps=["step1", "step2", "step3"],
-            )
-        ]
-    
-    # Implement other abstract methods...
+```
+Text Input
+    ↓
+┌────────────────────┐
+│ Concept Extractor  │ → Identifies key concepts
+└─────────┬──────────┘
+          ↓
+┌────────────────────┐
+│Relationship Mapper │ → Maps connections
+└─────────┬──────────┘
+          ↓
+┌────────────────────┐
+│ Chain Builder      │ → Builds reasoning patterns
+└─────────┬──────────┘
+          ↓
+┌────────────────────┐
+│ Knowledge Graph    │ → Structures knowledge
+└────────────────────┘
 ```
 
-### Built-in Domains
-
-- **Medical** (`MedicalDomain`) - Clinical reasoning, pathophysiology
-- **Business** (`BusinessDomain`) - Sales, strategy, frameworks
-- **Custom** - Easy to extend!
-
----
-
-## 📦 Components
-
-### Core Modules
-
-```
-reasoning-core/
-├── domains/              # Domain plugins
-│   ├── base_domain.py   # Abstract base
-│   ├── medical_domain.py
-│   └── business_domain.py
-├── extractors/          # Concept & relationship extraction
-├── graph/               # Knowledge graph builder
-├── chains/              # Reasoning chain analyzer
-└── api/                 # Public API
-```
-
-### Key Classes
-
-- **`BaseDomain`** - Abstract base for all domains
-- **`Concept`** - Represents extracted concepts
-- **`Relationship`** - Represents concept relationships
-- **`ReasoningPattern`** - Domain reasoning patterns
-- **`KnowledgeGraph`** - Graph structure
-- **`ReasoningChain`** - Ordered concept sequences
-
----
-
-## 🎓 Concepts
-
-### Reasoning Chains
-
-A **reasoning chain** is an ordered sequence of concepts showing how an expert thinks:
-
-```
-Medical Example:
-Symptom (chest pain) 
-  → Differential (MI, PE, pneumonia)
-  → Workup (ECG, troponin, D-dimer)
-  → Diagnosis (MI)
-  → Treatment (aspirin, heparin)
-
-Business Example:
-Pain point (high costs)
-  → Solution (automation)
-  → Benefit (time savings)
-  → Value (cost reduction)
-  → ROI (50% savings)
-```
-
-### Knowledge Graphs
-
-Visual representation of concepts and relationships:
-
-```mermaid
-graph LR
-    A[Chest Pain] -->|suggests| B[MI]
-    A -->|suggests| C[PE]
-    B -->|diagnosed_by| D[Troponin]
-    B -->|treated_by| E[Aspirin]
-    E -->|has_effect| F[Platelet Inhibition]
-```
-
----
-
-## 🛠️ Development
-
-### Setup
+## 📦 Installation from Source
 
 ```bash
 git clone https://github.com/Excelsior2026/reasoning-core.git
 cd reasoning-core
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e .
 ```
 
-### Testing
+## 🧪 Development
 
 ```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
 pytest
-pytest --cov=src
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+
+# Format code
+black src tests
+isort src tests
+
+# Lint
+flake8 src tests
+mypy src
 ```
 
-### Creating a Custom Domain
+## 🎯 Use Cases
 
-1. Subclass `BaseDomain`
-2. Implement required methods
-3. Define terminology and patterns
-4. Test with sample content
+### Medical Education
+- Extract clinical reasoning from lectures
+- Build diagnostic decision trees
+- Generate study questions
 
-See `medical_domain.py` and `business_domain.py` for examples.
+### Business Training
+- Capture sales methodologies
+- Map objection handling strategies
+- Identify success patterns
 
----
+### Legal Analysis
+- Extract case law reasoning
+- Map precedent relationships
+- Build argument structures
 
-## 🌐 Products Using Reasoning Core
+### Engineering Documentation
+- Capture architectural decisions
+- Map system dependencies
+- Document troubleshooting patterns
 
-- **[COGNISCRIBE](https://github.com/Excelsior2026/COGNISCRIBE)** - Medical education transcription with reasoning extraction
-- **REASONMAP** - Multi-domain enterprise platform (coming soon)
+## 📖 Documentation
 
----
+Full documentation coming soon at: [docs.reasoning-core.dev](https://docs.reasoning-core.dev)
 
 ## 🤝 Contributing
 
-Contributions welcome! Areas of interest:
-- New domain plugins (legal, engineering, science, etc.)
-- Improved NER models
-- LLM integration for relationship extraction
+Contributions are welcome! Areas for contribution:
+- New domain plugins
+- Enhanced extraction algorithms
 - Graph visualization tools
-- Performance optimizations
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
+- Integration examples
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details.
-
----
+MIT License - see [LICENSE](LICENSE) for details
 
 ## 🙏 Acknowledgments
 
-Built on the shoulders of:
-- Domain-driven design principles
-- Knowledge graph research
-- Clinical reasoning methodologies
-- Modern LLM capabilities
+Built for the COGNISCRIBE and REASONMAP projects.
 
 ---
 
-**Transform content into intelligence. Extract reasoning. Build knowledge.**
-
-*Made with ❤️ for learners, educators, and knowledge workers everywhere.*
+**Made with ❤️ for transforming expertise into knowledge**
