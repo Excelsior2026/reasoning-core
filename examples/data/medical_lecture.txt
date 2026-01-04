@@ -1,0 +1,27 @@
+Today we're discussing acute myocardial infarction, commonly known as a heart attack.
+
+A 65-year-old male patient presents to the emergency department with acute onset chest pain.
+The pain is described as crushing, substernal, radiating to the left arm and jaw.
+The patient also reports shortness of breath and diaphoresis.
+
+On examination, vital signs show tachycardia with heart rate of 105 bpm and blood pressure of 160/95 mmHg.
+The patient appears anxious and in moderate distress.
+
+We immediately order an ECG, which reveals ST-segment elevation in leads II, III, and aVF,
+consistent with an inferior wall myocardial infarction.
+
+Laboratory tests show elevated troponin levels at 5.2 ng/mL, confirming myocardial damage.
+D-dimer is normal, ruling out pulmonary embolism.
+
+The diagnosis is acute inferior wall myocardial infarction, a medical emergency requiring immediate intervention.
+
+Treatment is initiated with aspirin 325mg chewed, clopidogrel loading dose,
+unfractionated heparin, and nitroglycerin for chest pain relief.
+
+The patient is prepared for emergent cardiac catheterization to identify and treat the blocked coronary artery.
+This is a time-critical intervention - "time is muscle" as we say in cardiology.
+
+Post-procedure, the patient will be started on beta blockers, ACE inhibitors, and statins
+for secondary prevention of future cardiac events.
+
+Regular monitoring of cardiac biomarkers and ECG changes is essential during the hospital stay.
