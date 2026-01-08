@@ -1,3 +1,5 @@
-"""Web API and UI for reasoning-core."""
+"""Web interface for reasoning-core."""
 
-__all__ = ["create_app", "parse_document", "scrape_website"]
+from reasoning_core.web.server import app
+
+__all__ = ["app"]

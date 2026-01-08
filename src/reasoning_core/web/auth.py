@@ -86,11 +86,16 @@ def verify_jwt_token(token: str) -> Dict:
         raise AuthenticationError("JWT secret key not configured")
 
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if hasattr(jwt, 'decode'):
+            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        else:
+            # Fallback for PyJWT
+            from jwt import decode
+            payload = decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return payload
-    except jwt.ExpiredSignatureError:
-        raise AuthenticationError("Token has expired")
-    except jwt.InvalidTokenError:
+    except Exception as e:
+        if "expired" in str(e).lower() or isinstance(e, getattr(jwt, 'ExpiredSignatureError', Exception)):
+            raise AuthenticationError("Token has expired")
         raise AuthenticationError("Invalid token")
 
 
@@ -158,7 +163,7 @@ async def authenticate(
     )
 
 
-def optional_auth(
+async def optional_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     api_key: Optional[str] = Depends(api_key_scheme),
 ) -> Optional[Dict]:

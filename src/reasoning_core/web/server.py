@@ -209,7 +209,7 @@ async def health():
     return {"status": "healthy", "service": "reasoning-core"}
 
 
-@app.post("/api/analyze/text", response_model=AnalysisResponse, dependencies=[Depends(optional_auth)])
+@app.post("/api/analyze/text", response_model=AnalysisResponse)
 async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(optional_auth)):
     """Analyze text directly."""
     logger.info(f"Text analysis request: domain={request.domain}, length={len(request.text)}")
@@ -250,7 +250,7 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
         )
 
 
-@app.post("/api/analyze/file", dependencies=[Depends(optional_auth)])
+@app.post("/api/analyze/file")
 async def analyze_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -427,7 +427,7 @@ def process_file_task(task_id: str, file_path: str, domain: str):
             pass
 
 
-@app.post("/api/analyze/url", dependencies=[Depends(optional_auth)])
+@app.post("/api/analyze/url")
 async def analyze_url(
     background_tasks: BackgroundTasks,
     request: URLRequest,
@@ -520,7 +520,7 @@ def process_url_task(task_id: str, url: str, domain: str):
             }
 
 
-@app.get("/api/results/{task_id}", dependencies=[Depends(optional_auth)])
+@app.get("/api/results/{task_id}")
 async def get_results(task_id: str, auth: Optional[Dict] = Depends(optional_auth)):
     """Get analysis results by task ID."""
     # Cleanup expired tasks before checking

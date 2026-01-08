@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional, List
 from fastapi import HTTPException, UploadFile, status
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from reasoning_core.web.config import (
     MAX_TEXT_LENGTH,
     MAX_FILE_SIZE_BYTES,
@@ -21,10 +21,10 @@ class AnalysisRequest(BaseModel):
     domain: str = Field(
         default="generic",
         description="Domain type: medical, business, meeting, generic",
-        pattern="^(generic|medical|business|meeting)$",
     )
 
-    @validator("text")
+    @field_validator("text")
+    @classmethod
     def validate_text(cls, v):
         """Validate text content."""
         if not v or not v.strip():
@@ -39,7 +39,8 @@ class AnalysisRequest(BaseModel):
 
         return v.strip()
 
-    @validator("domain")
+    @field_validator("domain")
+    @classmethod
     def validate_domain(cls, v):
         """Validate domain name."""
         valid_domains = ["generic", "medical", "business", "meeting"]
@@ -55,10 +56,10 @@ class URLRequest(BaseModel):
     domain: str = Field(
         default="generic",
         description="Domain type: medical, business, meeting, generic",
-        pattern="^(generic|medical|business|meeting)$",
     )
 
-    @validator("url")
+    @field_validator("url")
+    @classmethod
     def validate_url(cls, v):
         """Validate URL format."""
         if not v or not isinstance(v, str):
@@ -80,7 +81,8 @@ class URLRequest(BaseModel):
 
         return v.strip()
 
-    @validator("domain")
+    @field_validator("domain")
+    @classmethod
     def validate_domain(cls, v):
         """Validate domain name."""
         valid_domains = ["generic", "medical", "business", "meeting"]
