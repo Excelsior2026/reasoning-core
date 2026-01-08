@@ -5,6 +5,7 @@ from reasoning_core.plugins.base_domain import BaseDomain
 from reasoning_core.extractors.concept_extractor import Concept
 from reasoning_core.extractors.relationship_mapper import Relationship
 from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
+from typing import Optional
 import re
 
 
@@ -204,10 +205,38 @@ class MedicalDomain(BaseDomain):
 
     def _build_therapeutic_chain(
         self, concepts: List[Concept], relationships: List[Relationship]
-    ) -> ReasoningChain:
+    ) -> Optional[ReasoningChain]:
         """Build a therapeutic reasoning chain."""
-        # Similar to diagnostic but focuses on treatment pathway
-        return None  # Placeholder
+        steps = []
+
+        # Find diagnosis
+        diseases = [c for c in concepts if c.type == "diseases"]
+        if diseases:
+            steps.append(
+                ReasoningStep(concept=diseases[0], action="diagnose", rationale="Clinical diagnosis")
+            )
+
+        # Find treatment
+        treatments = [c for c in concepts if c.type == "treatments"]
+        if treatments:
+            steps.append(
+                ReasoningStep(
+                    concept=treatments[0], action="treat", rationale="Evidence-based treatment plan"
+                )
+            )
+
+        # Find monitoring/test
+        tests = [c for c in concepts if c.type == "tests"]
+        if tests:
+            steps.append(
+                ReasoningStep(
+                    concept=tests[0], action="monitor", rationale="Monitor treatment response"
+                )
+            )
+
+        if len(steps) >= 2:
+            return ReasoningChain(type="therapeutic", steps=steps, confidence=0.75, domain="medical")
+        return None
 
     def generate_questions(self, content: Dict) -> List[str]:
         """Generate clinical questions."""

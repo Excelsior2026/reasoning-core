@@ -1,8 +1,11 @@
 """Extract domain-specific concepts from text."""
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 import re
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    from reasoning_core.plugins.base_domain import BaseDomain
 
 
 @dataclass
@@ -19,7 +22,7 @@ class Concept:
 class ConceptExtractor:
     """Extract concepts from text using domain-specific patterns."""
 
-    def __init__(self, domain=None):
+    def __init__(self, domain: Optional["BaseDomain"] = None):
         """Initialize concept extractor.
 
         Args:
@@ -32,19 +35,33 @@ class ConceptExtractor:
 
         Args:
             text: Input text to analyze
-            domain_hints: Optional domain-specific hints
+            domain_hints: Optional domain-specific hints (currently unused)
 
         Returns:
             List of extracted concepts
+
+        Raises:
+            TypeError: If text is not a string
+            ValueError: If text is empty
         """
-        concepts = []
+        if not isinstance(text, str):
+            raise TypeError(f"text must be a string, got {type(text)}")
+        if not text.strip():
+            return []  # Return empty list for empty text
 
-        # Use domain-specific extraction if available
-        if self.domain:
-            domain_concepts = self.domain.extract_concepts(text)
-            concepts.extend(domain_concepts)
+        concepts: List[Concept] = []
 
-        # Generic extraction (fallback)
+        try:
+            # Use domain-specific extraction if available
+            if self.domain:
+                domain_concepts = self.domain.extract_concepts(text)
+                if domain_concepts:
+                    concepts.extend(domain_concepts)
+        except Exception:
+            # If domain extraction fails, fall back to generic extraction
+            concepts = []
+
+        # Generic extraction (fallback if no domain or domain extraction failed)
         if not concepts:
             concepts = self._generic_extraction(text)
 
@@ -97,28 +114,24 @@ class ConceptExtractor:
         context_end = min(len(text), end + window)
         return text[context_start:context_end]
 
-    def extract_with_llm(self, text: str, llm_service) -> List[Concept]:
-        """Extract concepts using LLM.
+    def extract_with_llm(self, text: str, llm_service: Optional[object] = None) -> List[Concept]:
+        """Extract concepts using LLM (not yet implemented).
+
+        This method is a placeholder for future LLM-based extraction.
+        Currently falls back to standard extraction.
 
         Args:
             text: Input text
-            llm_service: LLM service for extraction
+            llm_service: LLM service for extraction (not yet used)
 
         Returns:
-            List of extracted concepts
+            List of extracted concepts (using standard extraction for now)
+
+        Note:
+            This method will be implemented in a future release to integrate
+            with Ollama or other LLM services for enhanced concept extraction.
         """
-        # Placeholder for LLM-based extraction
-        # This would integrate with Ollama or other LLM services
-        prompt = f"""
-Extract key concepts from the following text. For each concept, identify:
-- The concept text
-- Its type (e.g., symptom, disease, strategy, metric)
-- Context
-
-Text:
-{text}
-
-Respond in JSON format.
-"""
-        # TODO: Implement LLM call
+        # TODO: Implement LLM-based extraction
+        # This will integrate with Ollama or other LLM services
+        # For now, use standard extraction
         return self.extract(text)

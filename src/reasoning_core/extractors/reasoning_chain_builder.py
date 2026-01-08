@@ -1,9 +1,12 @@
 """Build reasoning chains from concepts and relationships."""
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 from reasoning_core.extractors.concept_extractor import Concept
 from reasoning_core.extractors.relationship_mapper import Relationship
+
+if TYPE_CHECKING:
+    from reasoning_core.plugins.base_domain import BaseDomain
 
 
 @dataclass
@@ -28,7 +31,7 @@ class ReasoningChain:
 class ReasoningChainBuilder:
     """Build reasoning chains from concepts and relationships."""
 
-    def __init__(self, domain=None):
+    def __init__(self, domain: Optional["BaseDomain"] = None):
         """Initialize reasoning chain builder.
 
         Args:
@@ -44,19 +47,35 @@ class ReasoningChainBuilder:
         Args:
             concepts: List of extracted concepts
             relationships: List of relationships
-            domain_hints: Optional domain-specific hints
+            domain_hints: Optional domain-specific hints (currently unused)
 
         Returns:
             List of reasoning chains
+
+        Raises:
+            TypeError: If concepts or relationships are not lists
         """
-        chains = []
+        if not isinstance(concepts, list):
+            raise TypeError(f"concepts must be a list, got {type(concepts)}")
+        if not isinstance(relationships, list):
+            raise TypeError(f"relationships must be a list, got {type(relationships)}")
 
-        # Use domain-specific chain building if available
-        if self.domain:
-            domain_chains = self.domain.build_reasoning_chains(concepts, relationships)
-            chains.extend(domain_chains)
+        chains: List[ReasoningChain] = []
 
-        # Generic chain building
+        if not concepts:
+            return chains  # Return empty list if no concepts
+
+        try:
+            # Use domain-specific chain building if available
+            if self.domain:
+                domain_chains = self.domain.build_reasoning_chains(concepts, relationships)
+                if domain_chains:
+                    chains.extend(domain_chains)
+        except Exception:
+            # If domain chain building fails, fall back to generic
+            chains = []
+
+        # Generic chain building (fallback if no domain or domain building failed)
         if not chains:
             chains = self._generic_chain_building(concepts, relationships)
 

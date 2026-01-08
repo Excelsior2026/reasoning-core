@@ -1,11 +1,21 @@
 """REST API for reasoning extraction."""
 
 from typing import Dict, Optional
+from dataclasses import asdict
 from reasoning_core.extractors.concept_extractor import ConceptExtractor
 from reasoning_core.extractors.relationship_mapper import RelationshipMapper
 from reasoning_core.extractors.reasoning_chain_builder import ReasoningChainBuilder
 from reasoning_core.graph.knowledge_graph import KnowledgeGraph, Node, Edge
 from reasoning_core.plugins.base_domain import BaseDomain
+
+
+class ProcessingError(Exception):
+    """Exception raised when processing fails."""
+
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
+        self.message = message
+        self.original_error = original_error
+        super().__init__(self.message)
 
 
 class ReasoningAPI:
@@ -16,7 +26,13 @@ class ReasoningAPI:
 
         Args:
             domain: Domain plugin for specialized extraction
+
+        Raises:
+            TypeError: If domain is not None and not a BaseDomain instance
         """
+        if domain is not None and not isinstance(domain, BaseDomain):
+            raise TypeError(f"domain must be an instance of BaseDomain, got {type(domain)}")
+
         self.domain = domain
         self.concept_extractor = ConceptExtractor(domain=domain)
         self.relationship_mapper = RelationshipMapper(domain=domain)
@@ -31,34 +47,66 @@ class ReasoningAPI:
 
         Returns:
             Dictionary containing extracted reasoning
+
+        Raises:
+            TypeError: If text is not a string
+            ValueError: If text is empty
+            ProcessingError: If processing fails at any stage
         """
-        # Extract concepts
-        concepts = self.concept_extractor.extract(text)
+        # Input validation
+        if not isinstance(text, str):
+            raise TypeError(f"text must be a string, got {type(text)}")
+        if not text.strip():
+            raise ValueError("text cannot be empty")
 
-        # Map relationships
-        relationships = self.relationship_mapper.map_relationships(concepts, text)
+        try:
+            # Extract concepts
+            concepts = self.concept_extractor.extract(text)
 
-        # Build reasoning chains
-        chains = self.chain_builder.build_chains(concepts, relationships)
+            # Map relationships
+            relationships = self.relationship_mapper.map_relationships(concepts, text)
 
-        result = {
-            "concepts": [vars(c) for c in concepts],
-            "relationships": [vars(r) for r in relationships],
-            "reasoning_chains": [vars(c) for c in chains],
-        }
+            # Build reasoning chains
+            chains = self.chain_builder.build_chains(concepts, relationships)
 
-        # Build knowledge graph if requested
-        if include_graph:
-            graph = self._build_knowledge_graph(concepts, relationships)
-            result["knowledge_graph"] = graph.to_dict()
+            # Use asdict instead of vars for better dataclass support
+            result = {
+                "concepts": [asdict(c) for c in concepts],
+                "relationships": [asdict(r) for r in relationships],
+                "reasoning_chains": [asdict(c) for c in chains],
+            }
 
-        # Generate questions if domain supports it
-        if self.domain:
-            content_dict = self._prepare_content_for_questions(concepts)
-            questions = self.domain.generate_questions(content_dict)
-            result["questions"] = questions
+            # Build knowledge graph if requested
+            if include_graph:
+                try:
+                    graph = self._build_knowledge_graph(concepts, relationships)
+                    result["knowledge_graph"] = graph.to_dict()
+                except Exception as e:
+                    # Log error but don't fail entire processing
+                    # Graph building is optional
+                    result["knowledge_graph"] = None
+                    result["graph_error"] = str(e)
 
-        return result
+            # Generate questions if domain supports it
+            if self.domain:
+                try:
+                    content_dict = self._prepare_content_for_questions(concepts)
+                    questions = self.domain.generate_questions(content_dict)
+                    result["questions"] = questions
+                except Exception as e:
+                    # Log error but don't fail entire processing
+                    # Questions are optional
+                    result["questions"] = []
+                    result["questions_error"] = str(e)
+
+            return result
+
+        except (TypeError, ValueError) as e:
+            # Re-raise validation errors as-is
+            raise
+        except Exception as e:
+            # Wrap other exceptions
+            raise ProcessingError(f"Failed to process text: {e}", original_error=e) from e
 
     def _build_knowledge_graph(self, concepts, relationships) -> KnowledgeGraph:
         """Build knowledge graph from concepts and relationships.
@@ -69,30 +117,63 @@ class ReasoningAPI:
 
         Returns:
             KnowledgeGraph instance
-        """
-        graph = KnowledgeGraph()
 
-        # Add nodes
+        Raises:
+            ProcessingError: If graph building fails
+        """
+        import uuid
+        from collections import Counter
+
+        graph = KnowledgeGraph()
+        # Track concept positions to generate unique IDs
+        position_counter: Counter = Counter()
+
+        # Add nodes with unique IDs
+        node_map: Dict[tuple, str] = {}  # Maps (concept.text, concept.position) to node_id
         for concept in concepts:
+            # Create unique ID using type, position, and counter to avoid collisions
+            key = (concept.text, concept.position, concept.type)
+            if key in node_map:
+                # If duplicate exists, use existing node
+                continue
+
+            # Generate unique ID: use counter to handle same type+position
+            pos_key = (concept.type, concept.position)
+            position_counter[pos_key] += 1
+            node_id = f"{concept.type}_{concept.position}_{position_counter[pos_key]}"
+
             node = Node(
-                id=f"{concept.type}_{concept.position}",
+                id=node_id,
                 type=concept.type,
                 label=concept.text,
                 properties={"context": concept.context},
                 confidence=concept.confidence,
             )
             graph.add_node(node)
+            node_map[key] = node_id
 
-        # Add edges
+        # Add edges - use node_map to find correct IDs
         for rel in relationships:
-            edge = Edge(
-                source_id=f"{rel.source.type}_{rel.source.position}",
-                target_id=f"{rel.target.type}_{rel.target.position}",
-                type=rel.type,
-                properties={"evidence": rel.evidence},
-                confidence=rel.confidence,
-            )
-            graph.add_edge(edge)
+            source_key = (rel.source.text, rel.source.position, rel.source.type)
+            target_key = (rel.target.text, rel.target.position, rel.target.type)
+
+            source_id = node_map.get(source_key)
+            target_id = node_map.get(target_key)
+
+            # Only add edge if both nodes exist
+            if source_id and target_id:
+                edge = Edge(
+                    source_id=source_id,
+                    target_id=target_id,
+                    type=rel.type,
+                    properties={"evidence": rel.evidence},
+                    confidence=rel.confidence,
+                )
+                try:
+                    graph.add_edge(edge)
+                except ValueError as e:
+                    # Skip invalid edges (nodes not found) but continue processing
+                    continue
 
         return graph
 
@@ -117,7 +198,13 @@ class ReasoningAPI:
 
         Args:
             domain: New domain plugin
+
+        Raises:
+            TypeError: If domain is not a BaseDomain instance
         """
+        if not isinstance(domain, BaseDomain):
+            raise TypeError(f"domain must be an instance of BaseDomain, got {type(domain)}")
+
         self.domain = domain
         self.concept_extractor.domain = domain
         self.relationship_mapper.domain = domain
