@@ -8,6 +8,7 @@ __author__ = "Excelsior2026"
 __license__ = "MIT"
 
 from reasoning_core.api.reasoning_api import ReasoningAPI
+from reasoning_core.api.async_reasoning_api import AsyncReasoningAPI
 from reasoning_core.extractors.concept_extractor import ConceptExtractor
 from reasoning_core.extractors.relationship_mapper import RelationshipMapper
 from reasoning_core.extractors.reasoning_chain_builder import ReasoningChainBuilder
@@ -19,6 +20,7 @@ from reasoning_core.plugins.meeting_domain import MeetingDomain
 
 __all__ = [
     "ReasoningAPI",
+    "AsyncReasoningAPI",
     "ConceptExtractor",
     "RelationshipMapper",
     "ReasoningChainBuilder",

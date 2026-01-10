@@ -16,6 +16,7 @@ Reasoning Core is a Python library that extracts expert reasoning patterns from 
 - **📊 Knowledge Graphs**: Create visual, queryable knowledge structures
 - **🎯 Multi-Domain Support**: Medical, business, legal, engineering, and custom domains
 - **🔌 Plugin Architecture**: Extensible domain-specific reasoning
+- **⚡ Async Support**: Non-blocking processing for real-time applications
 - **🚀 Production Ready**: Type-safe, tested, documented
 
 ## 🚀 Quick Start
@@ -51,6 +52,28 @@ print(f"Reasoning chains: {len(result['reasoning_chains'])}")
 print(f"Generated questions: {result['questions']}")
 ```
 
+### Async Usage (New! ⚡)
+
+```python
+import asyncio
+from reasoning_core import AsyncReasoningAPI, MedicalDomain
+
+async def process_transcription():
+    api = AsyncReasoningAPI(domain=MedicalDomain())
+    
+    # Non-blocking processing
+    result = await api.process_text_async(text)
+    
+    # Process streaming transcription
+    async for chunk_result in api.process_stream(transcription_stream):
+        print(f"Processed chunk {chunk_result['chunk_num']}")
+    
+    # Batch process multiple documents concurrently
+    results = await api.process_batch([doc1, doc2, doc3])
+
+asyncio.run(process_transcription())
+```
+
 ### Domain-Specific Extraction
 
 ```python
@@ -61,6 +84,10 @@ medical_api = ReasoningAPI(domain=MedicalDomain())
 # Business Domain
 from reasoning_core import BusinessDomain
 business_api = ReasoningAPI(domain=BusinessDomain())
+
+# Meeting Domain
+from reasoning_core import MeetingDomain
+meeting_api = ReasoningAPI(domain=MeetingDomain())
 
 # Generic (no domain)
 generic_api = ReasoningAPI()
@@ -132,9 +159,91 @@ graph.add_edge(Edge(source_id="fever", target_id="infection", type="indicates"))
 path = graph.find_path("fever", "infection")
 print(f"Path: {path}")
 
-# Export
-print(graph.to_json())
+# Export in multiple formats
+print(graph.to_json())        # JSON
+print(graph.to_dot())         # Graphviz DOT
+print(graph.to_graphml())     # GraphML XML
+print(graph.to_cytoscape())   # Cytoscape.js
 ```
+
+## ⚡ Async API (Real-Time Processing)
+
+The `AsyncReasoningAPI` enables non-blocking processing for real-time applications like live transcription, streaming audio, and large document processing.
+
+### Streaming Processing
+
+Process text as it arrives (perfect for CogniScribe integration):
+
+```python
+import asyncio
+from reasoning_core import AsyncReasoningAPI, MedicalDomain
+
+async def process_live_transcription(transcription_stream):
+    api = AsyncReasoningAPI(domain=MedicalDomain())
+    
+    # Process stream with overlap for context preservation
+    async for result in api.process_stream(
+        transcription_stream,
+        chunk_size=1000,  # Process every 1000 characters
+        overlap=100,      # 100 character overlap for context
+        progress_callback=lambda n, t: print(f"Processing chunk {n}")
+    ):
+        # Extract concepts from each chunk
+        concepts = result['concepts']
+        chains = result['reasoning_chains']
+        
+        # Update UI, database, or knowledge graph in real-time
+        print(f"Chunk {result['chunk_num']}: {len(concepts)} concepts")
+```
+
+### Batch Processing
+
+Process multiple documents concurrently:
+
+```python
+async def process_multiple_lectures(lecture_transcripts):
+    api = AsyncReasoningAPI(domain=MedicalDomain(), max_workers=4)
+    
+    # Process all lectures concurrently
+    results = await api.process_batch(
+        lecture_transcripts,
+        progress_callback=lambda done, total: print(f"{done}/{total} complete")
+    )
+    
+    # Analyze all results
+    for i, result in enumerate(results):
+        print(f"Lecture {i+1}: {len(result['concepts'])} concepts")
+```
+
+### Merging Stream Results
+
+Combine streaming results into unified output:
+
+```python
+async def process_and_merge(long_transcript):
+    api = AsyncReasoningAPI(domain=MedicalDomain())
+    
+    # Process as stream
+    stream_results = api.process_stream(transcript_stream, chunk_size=500)
+    
+    # Merge into single unified result
+    merged = await api.merge_stream_results(stream_results)
+    
+    print(f"Total concepts: {len(merged['concepts'])}")
+    print(f"Total relationships: {len(merged['relationships'])}")
+    print(f"Processed {merged['chunk_count']} chunks")
+    
+    # Access unified knowledge graph
+    graph = merged['knowledge_graph']
+```
+
+### Use Cases for Async API
+
+- **Live Medical Transcription**: Process CogniScribe transcriptions in real-time
+- **Meeting Notes**: Extract action items and decisions as meetings progress
+- **Large Document Processing**: Process lengthy documents without blocking
+- **Concurrent Analysis**: Analyze multiple documents simultaneously
+- **Progress Tracking**: Monitor processing of long-running operations
 
 ## 🎯 Domain Plugins
 
@@ -177,6 +286,26 @@ print(domain.get_reasoning_patterns())
 - Frameworks (MEDDIC, BANT, SPIN)
 - Activities (prospecting, discovery, closing)
 - Pain points (inefficiency, cost, complexity)
+
+### Meeting Domain
+
+Meeting notes and action item extraction:
+
+```python
+from reasoning_core import MeetingDomain
+
+domain = MeetingDomain()
+print(domain.get_reasoning_patterns())
+# ['agenda_to_discussion', 'discussion_to_decision',
+#  'decision_to_action', 'action_to_owner']
+```
+
+**Concepts extracted:**
+- Action items and tasks
+- Decisions and agreements
+- Participants and roles
+- Deadlines and timelines
+- Discussion topics
 
 ### Custom Domains
 
@@ -244,6 +373,9 @@ pytest
 # Run with coverage
 pytest --cov=src --cov-report=html
 
+# Run async tests
+pytest -v tests/test_async_api.py
+
 # Format code
 black src tests
 isort src tests
@@ -255,15 +387,30 @@ mypy src
 
 ## 🎯 Use Cases
 
-### Medical Education
-- Extract clinical reasoning from lectures
-- Build diagnostic decision trees
-- Generate study questions
+### Medical Education (CogniScribe Integration)
+- Extract clinical reasoning from live lectures
+- Build diagnostic decision trees in real-time
+- Generate study questions from transcriptions
+- Create interactive knowledge graphs
+
+```python
+# CogniScribe integration example
+async def cogniscribe_pipeline(audio_stream):
+    # Audio → Text (CogniScribe STT)
+    transcription = await cogniscribe.transcribe(audio_stream)
+    
+    # Text → Reasoning (reasoning-core)
+    api = AsyncReasoningAPI(domain=MedicalDomain())
+    async for result in api.process_stream(transcription):
+        # Update knowledge graph in real-time
+        await update_knowledge_base(result)
+```
 
 ### Business Training
-- Capture sales methodologies
+- Capture sales methodologies from recordings
 - Map objection handling strategies
 - Identify success patterns
+- Build training materials
 
 ### Legal Analysis
 - Extract case law reasoning
@@ -275,17 +422,11 @@ mypy src
 - Map system dependencies
 - Document troubleshooting patterns
 
-## 📖 Documentation
+## 📖 Examples
 
-Full documentation coming soon at: [docs.reasoning-core.dev](https://docs.reasoning-core.dev)
-
-## 🤝 Contributing
-
-Contributions are welcome! Areas for contribution:
-- New domain plugins
-- Enhanced extraction algorithms
-- Graph visualization tools
-- Integration examples
+See the `examples/` directory for comprehensive usage examples:
+- `async_usage_examples.py` - Async API usage patterns
+- Jupyter notebooks for interactive exploration
 
 ## 📄 License
 
