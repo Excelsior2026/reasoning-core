@@ -1,8 +1,9 @@
 """Tests for async reasoning API."""
 
-import pytest
 import asyncio
-from typing import List, AsyncIterator
+from typing import AsyncIterator
+
+import pytest
 
 from reasoning_core import AsyncReasoningAPI, MedicalDomain
 from reasoning_core.api.reasoning_api import ProcessingError
@@ -20,29 +21,32 @@ def medical_text():
     return (
         "Patient presents with chest pain and dyspnea. "
         "ECG shows ST elevation. Troponin is elevated. "
-        "Diagnosis: myocardial infarction. Treatment: aspirin and catheterization."
+        "Diagnosis: myocardial infarction. "
+        "Treatment: aspirin and catheterization."
     )
 
 
 @pytest.fixture
 def long_medical_text():
     """Longer medical text for streaming tests."""
-    return """Patient presents with acute onset chest pain radiating to left arm.
-    Physical examination reveals diaphoresis and tachycardia.
-    Vital signs: BP 160/95, HR 110, RR 22, O2 sat 94% on room air.
-    ECG demonstrates ST-segment elevation in leads II, III, and aVF.
-    Troponin I elevated at 12 ng/mL, CK-MB also elevated.
-    Chest X-ray shows mild pulmonary edema.
-    Clinical diagnosis: acute inferior wall myocardial infarction.
-    Management: aspirin 325mg, clopidogrel 600mg loading dose.
-    Heparin bolus followed by infusion initiated.
-    Patient transferred to catheterization lab for urgent PCI.
-    Angiography revealed 100% occlusion of right coronary artery.
-    Successful stent placement with TIMI 3 flow restored.
-    Post-procedure troponin peaked at 45 ng/mL.
-    Patient stable on dual antiplatelet therapy and beta-blocker.
-    Echocardiogram shows mild hypokinesis of inferior wall, EF 45%.
-    Discharged on day 3 with cardiac rehabilitation referral."""
+    return (
+        "Patient presents with acute onset chest pain radiating to "
+        "left arm. Physical examination reveals diaphoresis and "
+        "tachycardia. Vital signs: BP 160/95, HR 110, RR 22, "
+        "O2 sat 94% on room air. ECG demonstrates ST-segment elevation "
+        "in leads II, III, and aVF. Troponin I elevated at 12 ng/mL, "
+        "CK-MB also elevated. Chest X-ray shows mild pulmonary edema. "
+        "Clinical diagnosis: acute inferior wall myocardial infarction. "
+        "Management: aspirin 325mg, clopidogrel 600mg loading dose. "
+        "Heparin bolus followed by infusion initiated. Patient "
+        "transferred to catheterization lab for urgent PCI. Angiography "
+        "revealed 100% occlusion of right coronary artery. Successful "
+        "stent placement with TIMI 3 flow restored. Post-procedure "
+        "troponin peaked at 45 ng/mL. Patient stable on dual "
+        "antiplatelet therapy and beta-blocker. Echocardiogram shows "
+        "mild hypokinesis of inferior wall, EF 45%. Discharged on "
+        "day 3 with cardiac rehabilitation referral."
+    )
 
 
 @pytest.mark.asyncio
@@ -71,13 +75,17 @@ async def test_process_text_async_error_handling(async_api):
 @pytest.mark.asyncio
 async def test_process_text_async_without_graph(async_api, medical_text):
     """Test async processing without knowledge graph."""
-    result = await async_api.process_text_async(medical_text, include_graph=False)
+    result = await async_api.process_text_async(
+        medical_text, include_graph=False
+    )
 
     assert "concepts" in result
     assert "knowledge_graph" not in result or result["knowledge_graph"] is None
 
 
-async def create_text_stream(text: str, chunk_size: int = 50) -> AsyncIterator[str]:
+async def create_text_stream(
+    text: str, chunk_size: int = 50
+) -> AsyncIterator[str]:
     """Create async text stream for testing."""
     for i in range(0, len(text), chunk_size):
         await asyncio.sleep(0.01)  # Simulate streaming delay
@@ -90,7 +98,9 @@ async def test_process_stream(async_api, long_medical_text):
     stream = create_text_stream(long_medical_text, chunk_size=100)
     results = []
 
-    async for result in async_api.process_stream(stream, chunk_size=200, overlap=50):
+    async for result in async_api.process_stream(
+        stream, chunk_size=200, overlap=50
+    ):
         results.append(result)
         assert "chunk_num" in result
         assert "is_final" in result
@@ -159,7 +169,9 @@ async def test_process_batch_with_progress(async_api):
     def progress_callback(completed: int, total: int):
         progress_updates.append((completed, total))
 
-    results = await async_api.process_batch(texts, progress_callback=progress_callback)
+    results = await async_api.process_batch(
+        texts, progress_callback=progress_callback
+    )
 
     assert len(results) == len(texts)
     assert len(progress_updates) == len(texts)
@@ -232,9 +244,7 @@ async def test_async_context_manager(medical_text):
 async def test_concurrent_processing(async_api, medical_text):
     """Test multiple concurrent process calls."""
     # Create multiple concurrent tasks
-    tasks = [
-        async_api.process_text_async(medical_text) for _ in range(5)
-    ]
+    tasks = [async_api.process_text_async(medical_text) for _ in range(5)]
 
     results = await asyncio.gather(*tasks)
 
@@ -296,7 +306,9 @@ async def test_set_domain_async(medical_text):
     api.set_domain(BusinessDomain())
 
     # Process business text
-    business_text = "Close the deal with enterprise customer. Upsell premium tier."
+    business_text = (
+        "Close the deal with enterprise customer. Upsell premium tier."
+    )
     result2 = await api.process_text_async(business_text)
 
     assert "concepts" in result1
