@@ -1,16 +1,16 @@
 """Async API for reasoning extraction with streaming support."""
 
 import asyncio
-from typing import Dict, Optional, List, AsyncIterator, Callable
 from dataclasses import asdict
+from typing import AsyncIterator, Callable, Dict, List, Optional
 
-from reasoning_core.api.reasoning_api import ReasoningAPI, ProcessingError
+from reasoning_core.api.reasoning_api import ProcessingError, ReasoningAPI
 from reasoning_core.plugins.base_domain import BaseDomain
 
 
 class AsyncReasoningAPI(ReasoningAPI):
     """Async API for reasoning extraction with streaming and batch support.
-    
+
     Extends ReasoningAPI with async methods for:
     - Non-blocking text processing
     - Streaming text chunk processing
@@ -18,7 +18,9 @@ class AsyncReasoningAPI(ReasoningAPI):
     - Real-time transcription integration
     """
 
-    def __init__(self, domain: Optional[BaseDomain] = None, max_workers: int = 4):
+    def __init__(
+        self, domain: Optional[BaseDomain] = None, max_workers: int = 4
+    ):
         """Initialize async reasoning API.
 
         Args:
@@ -73,7 +75,8 @@ class AsyncReasoningAPI(ReasoningAPI):
             chunk_size: Minimum characters to accumulate before processing
             overlap: Characters to overlap between chunks for context
             include_graph: Whether to build knowledge graph for each chunk
-            progress_callback: Optional callback(chunk_num, text) for progress
+            progress_callback: Optional callback(chunk_num, text) for
+                progress tracking
 
         Yields:
             Processing results for each chunk with metadata
@@ -105,7 +108,8 @@ class AsyncReasoningAPI(ReasoningAPI):
 
                 # Call progress callback if provided
                 if progress_callback:
-                    progress_callback(chunk_num, text_to_process[:100] + "...")
+                    truncated_text = text_to_process[:100] + "..."
+                    progress_callback(chunk_num, truncated_text)
 
                 try:
                     result = await self.process_text_async(
@@ -161,7 +165,8 @@ class AsyncReasoningAPI(ReasoningAPI):
         Args:
             texts: List of texts to process
             include_graph: Whether to build knowledge graphs
-            progress_callback: Optional callback(completed, total) for progress
+            progress_callback: Optional callback(completed, total) for
+                progress tracking
 
         Returns:
             List of processing results in same order as input
@@ -275,9 +280,13 @@ class AsyncReasoningAPI(ReasoningAPI):
         # Build knowledge graph from merged data
         if all_concepts:
             try:
-                # Reconstruct concept objects for graph building
-                from reasoning_core.extractors.concept_extractor import Concept
-                from reasoning_core.extractors.relationship_mapper import Relationship
+                # Import here to avoid circular dependencies
+                from reasoning_core.extractors.concept_extractor import (
+                    Concept,
+                )
+                from reasoning_core.extractors.relationship_mapper import (
+                    Relationship,
+                )
 
                 concepts = [
                     Concept(
