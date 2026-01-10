@@ -13,13 +13,13 @@ async def example_basic_async():
 
     api = AsyncReasoningAPI(domain=MedicalDomain())
 
-    text = """
-    Patient presents with acute chest pain and shortness of breath.
-    ECG shows ST elevation in inferior leads.
-    Troponin is significantly elevated.
-    Diagnosis: acute myocardial infarction.
-    Treatment: aspirin, heparin, and urgent catheterization.
-    """
+    text = (
+        "Patient presents with acute chest pain and shortness of breath. "
+        "ECG shows ST elevation in inferior leads. "
+        "Troponin is significantly elevated. "
+        "Diagnosis: acute myocardial infarction. "
+        "Treatment: aspirin, heparin, and urgent catheterization."
+    )
 
     result = await api.process_text_async(text)
 
@@ -72,7 +72,8 @@ async def example_streaming_transcription():
     ):
         chunk_concepts = len(result["concepts"])
         all_concepts.extend(result["concepts"])
-        print(f"    → Found {chunk_concepts} concepts in chunk {result['chunk_num']}")
+        chunk_num = result["chunk_num"]
+        print(f"    → Found {chunk_concepts} concepts in chunk {chunk_num}")
 
     print(f"\nTotal concepts extracted: {len(all_concepts)}")
 
@@ -86,11 +87,16 @@ async def example_batch_processing():
 
     # Multiple patient cases
     documents = [
-        "Case 1: Patient with acute MI. ECG shows ST elevation. Troponin elevated.",
-        "Case 2: Suspected pneumonia. Fever, cough, dyspnea. Chest X-ray shows infiltrate.",
-        "Case 3: Diabetic ketoacidosis. High glucose, ketones, acidosis. IV insulin started.",
-        "Case 4: Stroke presentation. Facial droop, arm weakness, speech difficulty.",
-        "Case 5: Sepsis with hypotension. Blood cultures positive. Broad spectrum antibiotics.",
+        "Case 1: Patient with acute MI. ECG shows ST elevation. "
+        "Troponin elevated.",
+        "Case 2: Suspected pneumonia. Fever, cough, dyspnea. "
+        "Chest X-ray shows infiltrate.",
+        "Case 3: Diabetic ketoacidosis. High glucose, ketones, acidosis. "
+        "IV insulin started.",
+        "Case 4: Stroke presentation. Facial droop, arm weakness, "
+        "speech difficulty.",
+        "Case 5: Sepsis with hypotension. Blood cultures positive. "
+        "Broad spectrum antibiotics.",
     ]
 
     # Progress tracking
@@ -116,21 +122,21 @@ async def example_merge_stream_results():
 
     api = AsyncReasoningAPI(domain=MedicalDomain())
 
-    long_transcript = """
-    Patient is a 65-year-old male presenting with acute chest pain.
-    Pain started 2 hours ago, described as crushing, radiating to left arm.
-    Associated symptoms include diaphoresis, nausea, and dyspnea.
-    Past medical history significant for hypertension and hyperlipidemia.
-    Medications include lisinopril and atorvastatin.
-    On exam: BP 150/90, HR 105, RR 20, O2 sat 95% on room air.
-    Cardiovascular exam reveals S4 gallop, no murmurs.
-    ECG shows ST elevation in leads II, III, aVF consistent with inferior STEMI.
-    Troponin I elevated at 8.5 ng/mL.
-    Decision made for urgent cardiac catheterization.
-    Angiography revealed 100% occlusion of right coronary artery.
-    Successful PCI with drug-eluting stent placement.
-    Patient stable post-procedure on dual antiplatelet therapy.
-    """
+    long_transcript = (
+        "Patient is a 65-year-old male presenting with acute chest pain. "
+        "Pain started 2 hours ago, described as crushing, radiating to "
+        "left arm. Associated symptoms include diaphoresis, nausea, and "
+        "dyspnea. Past medical history significant for hypertension and "
+        "hyperlipidemia. Medications include lisinopril and atorvastatin. "
+        "On exam: BP 150/90, HR 105, RR 20, O2 sat 95% on room air. "
+        "Cardiovascular exam reveals S4 gallop, no murmurs. ECG shows ST "
+        "elevation in leads II, III, aVF consistent with inferior STEMI. "
+        "Troponin I elevated at 8.5 ng/mL. Decision made for urgent "
+        "cardiac catheterization. Angiography revealed 100% occlusion of "
+        "right coronary artery. Successful PCI with drug-eluting stent "
+        "placement. Patient stable post-procedure on dual antiplatelet "
+        "therapy."
+    )
 
     # Create stream
     async def create_stream() -> AsyncIterator[str]:
@@ -198,7 +204,10 @@ async def example_context_manager():
     """Use async context manager for automatic cleanup."""
     print("\n=== Example 6: Async Context Manager ===")
 
-    text = "Patient diagnosed with pneumonia. Treatment: antibiotics and supportive care."
+    text = (
+        "Patient diagnosed with pneumonia. Treatment: antibiotics and "
+        "supportive care."
+    )
 
     async with AsyncReasoningAPI(domain=MedicalDomain()) as api:
         result = await api.process_text_async(text)
@@ -215,13 +224,21 @@ async def example_concurrent_streams():
 
     # Multiple transcription sources
     async def stream1() -> AsyncIterator[str]:
-        texts = ["Patient A: chest pain. ", "ECG abnormal. ", "Troponin elevated."]
+        texts = [
+            "Patient A: chest pain. ",
+            "ECG abnormal. ",
+            "Troponin elevated.",
+        ]
         for text in texts:
             await asyncio.sleep(0.2)
             yield text
 
     async def stream2() -> AsyncIterator[str]:
-        texts = ["Patient B: fever and cough. ", "X-ray shows pneumonia. ", "Antibiotics started."]
+        texts = [
+            "Patient B: fever and cough. ",
+            "X-ray shows pneumonia. ",
+            "Antibiotics started.",
+        ]
         for text in texts:
             await asyncio.sleep(0.2)
             yield text
@@ -252,8 +269,10 @@ async def example_cogniscribe_integration():
         lecture_chunks = [
             "Today we're discussing acute coronary syndrome. ",
             "The pathophysiology involves plaque rupture and thrombosis. ",
-            "Clinical presentation includes chest pain, often described as crushing or pressure. ",
-            "Diagnostic workup includes ECG, troponin, and cardiac enzymes. ",
+            "Clinical presentation includes chest pain, often described "
+            "as crushing or pressure. ",
+            "Diagnostic workup includes ECG, troponin, and cardiac "
+            "enzymes. ",
             "STEMI requires immediate reperfusion therapy. ",
             "Treatment options include PCI or thrombolysis. ",
             "Prognosis depends on time to treatment and extent of damage.",
@@ -270,9 +289,13 @@ async def example_cogniscribe_integration():
         cogniscribe_transcription(), chunk_size=120, include_graph=True
     ):
         results.append(result)
-        print(f"Chunk {result['chunk_num']}: "
-              f"{len(result['concepts'])} concepts, "
-              f"{len(result['reasoning_chains'])} chains")
+        chunk_num = result["chunk_num"]
+        concepts_count = len(result["concepts"])
+        chains_count = len(result["reasoning_chains"])
+        print(
+            f"Chunk {chunk_num}: {concepts_count} concepts, "
+            f"{chains_count} chains"
+        )
 
     # Merge results for final knowledge graph
     async def result_iterator():
@@ -281,10 +304,12 @@ async def example_cogniscribe_integration():
 
     merged = await api.merge_stream_results(result_iterator())
 
-    print(f"\nFinal merged results:")
+    print("\nFinal merged results:")
     print(f"  Total concepts: {len(merged['concepts'])}")
-    print(f"  Knowledge graph nodes: {len(merged['knowledge_graph']['nodes'])}")
-    print(f"  Knowledge graph edges: {len(merged['knowledge_graph']['edges'])}")
+    kg_nodes = len(merged["knowledge_graph"]["nodes"])
+    kg_edges = len(merged["knowledge_graph"]["edges"])
+    print(f"  Knowledge graph nodes: {kg_nodes}")
+    print(f"  Knowledge graph edges: {kg_edges}")
 
 
 # Main execution
