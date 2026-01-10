@@ -21,9 +21,15 @@ WizardSmallImageFile=compiler:WizModernSmallImage-IS.bmp
 
 [Files]
 Source: "..\..\src\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "node_modules"
+Source: "..\..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "node_modules;dist;.vite"
 Source: "..\..\pyproject.toml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\requirements-web.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\install.sh"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\install-unified.sh"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\install-unified.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\start.sh"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\run_web.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "install_dependencies.ps1"; DestDir: "{app}\installers\windows"; Flags: ignoreversion
 Source: "start_server.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start_server.bat"; DestName: "ReasoningCore.bat"; DestDir: "{app}"; Flags: ignoreversion
@@ -38,6 +44,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\installers\windows\install_dependencies.ps1"" -InstallDir ""{app}"""; StatusMsg: "Installing dependencies..."; Flags: runhidden runascurrentuser
+Filename: "{app}\start.bat"; Description: "Launch Reasoning Core"; Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure InitializeWizard;

@@ -22,6 +22,10 @@ class AnalysisRequest(BaseModel):
         default="generic",
         description="Domain type: medical, business, meeting, generic",
     )
+    use_llm: Optional[bool] = Field(
+        default=None,
+        description="Whether to use LLM enhancement (defaults to config setting)",
+    )
 
     @field_validator("text")
     @classmethod
@@ -56,6 +60,29 @@ class URLRequest(BaseModel):
     domain: str = Field(
         default="generic",
         description="Domain type: medical, business, meeting, generic",
+    )
+    use_llm: Optional[bool] = Field(
+        default=None,
+        description="Whether to use LLM enhancement (defaults to config setting)",
+    )
+
+
+class BatchAnalysisRequest(BaseModel):
+    """Request model for batch analysis."""
+
+    items: List[Dict] = Field(
+        ...,
+        description="List of items to analyze. Each item should have 'text', 'url', or 'file' field",
+        min_length=1,
+        max_length=50,  # Limit batch size
+    )
+    domain: str = Field(
+        default="generic",
+        description="Domain type: medical, business, meeting, generic",
+    )
+    use_llm: Optional[bool] = Field(
+        default=None,
+        description="Whether to use LLM enhancement (defaults to config setting)",
     )
 
     @field_validator("url")

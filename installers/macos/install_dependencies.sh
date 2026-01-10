@@ -70,8 +70,11 @@ INSTALL_DIR="${1:-/Applications/ReasoningCore}"
 echo ""
 echo "📦 Installing Python dependencies..."
 
-# Install Python packages
-python3 -m pip install --upgrade --target="$INSTALL_DIR/lib/python" \
+# Create lib/python directory if it doesn't exist
+mkdir -p "$INSTALL_DIR/lib/python"
+
+# Install Python packages to a location that can be in PYTHONPATH
+python3 -m pip install --upgrade \
     pydantic>=2.0.0 \
     fastapi>=0.100.0 \
     uvicorn[standard]>=0.23.0 \
@@ -80,12 +83,22 @@ python3 -m pip install --upgrade --target="$INSTALL_DIR/lib/python" \
     beautifulsoup4>=4.12.0 \
     PyPDF2>=3.0.0 \
     python-docx>=1.0.0 \
+    aiofiles>=23.0.0 \
+    pyjwt>=2.8.0 \
+    "python-jose[cryptography]>=3.3.0" \
     --upgrade-strategy only-if-needed
 
-# Also install reasoning-core itself
-if [ -d "$SCRIPT_DIR/../../src" ]; then
-    echo "📦 Installing reasoning-core..."
-    python3 -m pip install --target="$INSTALL_DIR/lib/python" "$SCRIPT_DIR/../.."
+# Also install reasoning-core itself (in editable mode if source exists, otherwise from package)
+if [ -d "$INSTALL_DIR/src" ]; then
+    echo "📦 Installing reasoning-core from source..."
+    cd "$INSTALL_DIR"
+    python3 -m pip install -e . --upgrade-strategy only-if-needed
+elif [ -d "$SCRIPT_DIR/../../src" ]; then
+    echo "📦 Installing reasoning-core from source..."
+    python3 -m pip install -e "$SCRIPT_DIR/../.." --upgrade-strategy only-if-needed
+else
+    echo "📦 Installing reasoning-core from package..."
+    python3 -m pip install reasoning-core --upgrade
 fi
 
 echo ""

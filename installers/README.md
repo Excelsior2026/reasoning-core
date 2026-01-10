@@ -2,6 +2,17 @@
 
 Cross-platform installer packages for Reasoning Core that automatically install all dependencies.
 
+## Quick Start
+
+### For Users
+
+**macOS**: Download and double-click `ReasoningCore-0.1.0-macos.pkg`  
+**Windows**: Download and run `ReasoningCore-0.1.0-windows-setup.exe` as Administrator
+
+### For Developers
+
+See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for detailed instructions on building installers.
+
 ## Supported Platforms
 
 - **macOS**: `.pkg` installer package

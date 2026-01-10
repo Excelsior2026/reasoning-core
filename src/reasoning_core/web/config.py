@@ -64,3 +64,10 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 FILE_CLEANUP_INTERVAL_SECONDS = int(os.getenv("REASONING_CORE_FILE_CLEANUP_INTERVAL", "3600"))  # 1 hour
 FILE_MAX_AGE_SECONDS = int(os.getenv("REASONING_CORE_FILE_MAX_AGE", "3600"))  # 1 hour
+
+# LLM settings
+LLM_ENABLED = os.getenv("REASONING_CORE_LLM_ENABLED", "false").lower() in ("true", "1", "yes")
+LLM_MODEL = os.getenv("REASONING_CORE_LLM_MODEL", "llama3.2:3b")
+LLM_BASE_URL = os.getenv("REASONING_CORE_LLM_URL", "http://localhost:11434")
+LLM_USE_GPU = os.getenv("REASONING_CORE_LLM_USE_GPU", "true").lower() in ("true", "1", "yes")
+LLM_TIMEOUT = int(os.getenv("REASONING_CORE_LLM_TIMEOUT", "120"))  # 2 minutes

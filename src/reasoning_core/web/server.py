@@ -15,11 +15,25 @@ import aiofiles
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Request
 from fastapi import status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.base import BaseHTTPMiddleware
+import json
 from pydantic import BaseModel
 
 from reasoning_core import ReasoningAPI, MedicalDomain, BusinessDomain, MeetingDomain
+from reasoning_core.web.config import (
+    LLM_ENABLED,
+    UPLOAD_DIR,
+    CORS_ALLOW_ORIGINS,
+    CORS_ALLOW_CREDENTIALS,
+    CORS_ALLOW_METHODS,
+    CORS_ALLOW_HEADERS,
+    TASK_EXPIRY_SECONDS,
+    FILE_CLEANUP_INTERVAL_SECONDS,
+    FILE_MAX_AGE_SECONDS,
+    LOG_LEVEL,
+    LOG_FILE,
+)
 from reasoning_core.web.parsers import parse_document, DocumentParserError
 from reasoning_core.web.scraper import scrape_website, ScrapingError
 from reasoning_core.web.config import (
@@ -39,10 +53,25 @@ from reasoning_core.web.rate_limit import rate_limit_middleware, cleanup_rate_li
 from reasoning_core.web.validation import (
     AnalysisRequest,
     URLRequest,
+    BatchAnalysisRequest,
     validate_file_upload,
     validate_file_size,
     sanitize_filename,
 )
+from reasoning_core.web.progress import (
+    create_progress_tracker,
+    get_progress_tracker,
+    remove_progress_tracker,
+)
+from reasoning_core.web.exports import export_markdown, export_pdf, export_html
+from reasoning_core.web.search import AdvancedSearch, Analytics
+from reasoning_core.web.cache import (
+    cache_text_analysis,
+    get_cached_text_analysis,
+    cleanup_caches,
+    get_cache_stats,
+)
+from reasoning_core.web.domain_builder import get_domain_builder
 
 # Configure logging
 logging.basicConfig(
@@ -169,19 +198,29 @@ def cleanup_on_exit():
     logger.info("Shutting down Reasoning Core Web Server")
 
 
-def get_domain(domain_name: str):
-    """Get domain instance by name.
+def get_domain(domain_name: str, custom_domain_id: Optional[str] = None):
+    """Get domain instance by name or custom domain ID.
 
     Args:
         domain_name: Domain name string
+        custom_domain_id: Optional custom domain ID
 
     Returns:
         Domain instance or None if invalid
     """
+    # Check for custom domain first
+    if domain_name.lower() == 'custom' and custom_domain_id:
+        builder = get_domain_builder()
+        config = builder.load_domain(custom_domain_id)
+        if config:
+            return builder.create_custom_domain(config)
+        return None
+    
     domain_map = {
         "medical": MedicalDomain,
         "business": BusinessDomain,
         "meeting": MeetingDomain,
+        "generic": None,
     }
     domain_class = domain_map.get(domain_name.lower())
     return domain_class() if domain_class else None
@@ -197,7 +236,17 @@ async def root():
             "analyze_text": "/api/analyze/text",
             "analyze_file": "/api/analyze/file",
             "analyze_url": "/api/analyze/url",
+            "analyze_batch": "/api/analyze/batch",
             "get_result": "/api/results/{task_id}",
+            "get_progress": "/api/progress/{task_id}",
+            "export_markdown": "/api/export/{task_id}/markdown",
+            "export_pdf": "/api/export/{task_id}/pdf",
+            "export_html": "/api/export/{task_id}/html",
+            "search": "/api/search",
+            "analytics": "/api/analytics/{task_id}",
+            "cache_stats": "/api/cache/stats",
+            "domains": "/api/domains",
+            "domain": "/api/domains/{domain_id}",
             "health": "/api/health",
         },
     }
@@ -209,21 +258,310 @@ async def health():
     return {"status": "healthy", "service": "reasoning-core"}
 
 
+@app.get("/api/cache/stats")
+async def get_cache_statistics(auth: Optional[Dict] = Depends(optional_auth)):
+    """Get cache statistics.
+
+    Returns:
+        Cache statistics
+    """
+    stats = get_cache_stats()
+    
+    # Cleanup expired entries
+    cleanup_stats = cleanup_caches()
+    
+    return {
+        "cache_statistics": stats,
+        "cleanup": cleanup_stats,
+    }
+
+
+@app.post("/api/cache/clear")
+async def clear_cache_endpoint(auth: Optional[Dict] = Depends(optional_auth)):
+    """Clear all caches."""
+    from reasoning_core.web.cache import clear_cache
+    clear_cache()
+    return {"message": "Cache cleared successfully"}
+
+
+# Schedule periodic cache cleanup
+import asyncio
+
+async def periodic_cache_cleanup():
+    """Periodically cleanup expired cache entries."""
+    while True:
+        await asyncio.sleep(3600)  # Every hour
+        cleanup_caches()
+
+
+# Start background task for cache cleanup
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on startup."""
+    asyncio.create_task(periodic_cache_cleanup())
+
+
+@app.get("/api/domains")
+async def list_domains(auth: Optional[Dict] = Depends(optional_auth)):
+    """List all custom domains.
+
+    Returns:
+        List of domain metadata
+    """
+    builder = get_domain_builder()
+    domains = builder.list_domains()
+    return {"domains": domains}
+
+
+@app.post("/api/domains")
+async def create_domain(
+    config: Dict[str, Any],
+    auth: Optional[Dict] = Depends(optional_auth),
+):
+    """Create or update a custom domain.
+
+    Args:
+        config: Domain configuration
+
+    Returns:
+        Created domain metadata
+    """
+    import time
+    
+    builder = get_domain_builder()
+    
+    # Add timestamps
+    if 'id' in config and builder.load_domain(config['id']):
+        # Update existing
+        config['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        # Create new
+        config['created_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+        config['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    
+    domain_id = builder.save_domain(config)
+    
+    return {
+        "id": domain_id,
+        "message": "Domain saved successfully",
+        "config": config,
+    }
+
+
+@app.get("/api/domains/{domain_id}")
+async def get_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Get custom domain configuration.
+
+    Args:
+        domain_id: Domain identifier
+
+    Returns:
+        Domain configuration
+    """
+    builder = get_domain_builder()
+    config = builder.load_domain(domain_id)
+    
+    if not config:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
+    
+    return {"domain": config}
+
+
+@app.delete("/api/domains/{domain_id}")
+async def delete_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Delete custom domain.
+
+    Args:
+        domain_id: Domain identifier
+
+    Returns:
+        Deletion status
+    """
+    builder = get_domain_builder()
+    deleted = builder.delete_domain(domain_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
+    
+    return {"message": "Domain deleted successfully"}
+
+
+@app.post("/api/domains/{domain_id}/test")
+async def test_domain(
+    domain_id: str,
+    test_text: str,
+    auth: Optional[Dict] = Depends(optional_auth),
+):
+    """Test custom domain on sample text.
+
+    Args:
+        domain_id: Domain identifier
+        test_text: Sample text to test
+
+    Returns:
+        Test results
+    """
+    builder = get_domain_builder()
+    config = builder.load_domain(domain_id)
+    
+    if not config:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
+    
+    # Create domain instance and test
+    try:
+        custom_domain = builder.create_custom_domain(config)
+        api = ReasoningAPI(domain=custom_domain, use_llm=False)
+        
+        result = api.process_text(test_text, include_graph=True, use_llm=False)
+    except Exception as e:
+        logger.exception(f"Error testing domain: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to test domain: {str(e)}",
+        )
+    
+    return {
+        "domain_id": domain_id,
+        "test_text": test_text,
+        "result": result,
+    }
+
+
+@app.get("/api/progress/{task_id}")
+async def stream_progress(task_id: str):
+    """Stream progress updates via Server-Sent Events.
+
+    Args:
+        task_id: Task identifier
+
+    Returns:
+        SSE stream of progress updates
+    """
+    async def event_generator():
+        """Generate SSE events."""
+        tracker = get_progress_tracker(task_id)
+        last_progress = -1
+        
+        # Send initial progress if available
+        if tracker:
+            update = tracker.to_dict()
+            yield f"data: {json.dumps(update)}\n\n"
+            last_progress = tracker.progress
+        
+        # Poll for updates
+        import asyncio
+        max_attempts = 600  # 10 minutes at 1 second intervals
+        attempts = 0
+        
+        while attempts < max_attempts:
+            await asyncio.sleep(1)  # Check every second
+            attempts += 1
+            
+            tracker = get_progress_tracker(task_id)
+            if tracker:
+                if tracker.progress != last_progress:
+                    update = tracker.to_dict()
+                    yield f"data: {json.dumps(update)}\n\n"
+                    last_progress = tracker.progress
+                    
+                    # Stop streaming when complete
+                    if tracker.progress >= 100 or tracker.stage in ("completed", "error"):
+                        yield f"data: {json.dumps({**tracker.to_dict(), 'done': True})}\n\n"
+                        break
+            else:
+                # Check if task is completed in tasks dict
+                if task_id in tasks:
+                    task = tasks[task_id]
+                    if task.get("status") in ("completed", "error"):
+                        yield f"data: {json.dumps({'task_id': task_id, 'status': task.get('status'), 'done': True})}\n\n"
+                        break
+                else:
+                    # Task not found
+                    yield f"data: {json.dumps({'task_id': task_id, 'error': 'Task not found', 'done': True})}\n\n"
+                    break
+        
+        # Cleanup
+        remove_progress_tracker(task_id)
+    
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.post("/api/analyze/text", response_model=AnalysisResponse)
 async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(optional_auth)):
     """Analyze text directly."""
     logger.info(f"Text analysis request: domain={request.domain}, length={len(request.text)}")
 
     try:
+        # Get LLM preference from request or use default
+        use_llm = request.use_llm if request.use_llm is not None else LLM_ENABLED
+        
+        # Check cache first
+        cached_result = get_cached_text_analysis(request.text, request.domain, use_llm)
+        if cached_result:
+            logger.info("Returning cached analysis result")
+            task_id = str(uuid.uuid4())
+            tasks[task_id] = {
+                "status": "completed",
+                "result": cached_result.get("result", cached_result),
+                "domain": request.domain,
+                "created_at": time.time(),
+            }
+            return AnalysisResponse(
+                task_id=task_id,
+                status="completed",
+                message="Analysis completed (cached)",
+            )
+        
+        # Create task ID for progress tracking
+        task_id = str(uuid.uuid4())
+        tracker = create_progress_tracker(task_id)
+        
         # Get domain
         domain = get_domain(request.domain)
-        api = ReasoningAPI(domain=domain)
+        api = ReasoningAPI(domain=domain, use_llm=use_llm)
 
-        # Process text
-        result = api.process_text(request.text, include_graph=True)
+        # Process text with progress updates
+        def update_progress(stage: str, progress: int, message: str = ""):
+            tracker.update(stage, progress, message)
+        
+        # Process with progress callbacks
+        update_progress("extracting_concepts", 10, "Extracting concepts...")
+        concepts = api.concept_extractor.extract(request.text)
+        
+        update_progress("mapping_relationships", 40, "Mapping relationships...")
+        relationships = api.relationship_mapper.map_relationships(concepts, request.text)
+        
+        update_progress("building_chains", 60, "Building reasoning chains...")
+        chains = api.chain_builder.build_chains(concepts, relationships)
+        
+        update_progress("building_graph", 80, "Building knowledge graph...")
+        from dataclasses import asdict
+        result = {
+            "concepts": [asdict(c) for c in concepts],
+            "relationships": [asdict(r) for r in relationships],
+            "reasoning_chains": [asdict(c) for c in chains],
+            "llm_enhanced": use_llm,
+        }
+        
+        try:
+            graph = api._build_knowledge_graph(concepts, relationships)
+            result["knowledge_graph"] = graph.to_dict()
+        except Exception as e:
+            result["knowledge_graph"] = None
+            result["graph_error"] = str(e)
+        
+        # Generate questions
+        if api.domain:
+            try:
+                content_dict = api._prepare_content_for_questions(concepts)
+                questions = api.domain.generate_questions(content_dict)
+                result["questions"] = questions
+            except Exception:
+                result["questions"] = []
+        
+        update_progress("completed", 100, "Analysis complete")
 
         # Store result with expiration
-        task_id = str(uuid.uuid4())
         tasks[task_id] = {
             "status": "completed",
             "result": result,
@@ -232,6 +570,12 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
         }
 
         logger.info(f"Analysis completed: task_id={task_id}")
+
+        # Cache the result
+        cache_text_analysis(request.text, request.domain, result, use_llm)
+
+        # Clean up tracker after a delay
+        remove_progress_tracker(task_id)
 
         return AnalysisResponse(
             task_id=task_id,
@@ -307,8 +651,13 @@ async def analyze_file(
 
         logger.info(f"File uploaded: {file_path.name}, size: {file_size / 1024:.2f}KB")
 
+        # Create progress tracker
+        tracker = create_progress_tracker(task_id)
+        tracker.update("uploaded", 5, "File uploaded, starting analysis...")
+        
         # Process in background
-        background_tasks.add_task(process_file_task, task_id, str(file_path), domain)
+        use_llm_final = use_llm if use_llm is not None else LLM_ENABLED
+        background_tasks.add_task(process_file_task, task_id, str(file_path), domain, use_llm_final)
 
         return AnalysisResponse(
             task_id=task_id,
@@ -338,9 +687,13 @@ async def analyze_file(
         )
 
 
-def process_file_task(task_id: str, file_path: str, domain: str):
+def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool = False):
     """Process file in background."""
-    logger.info(f"Processing file task: task_id={task_id}, file={file_path}")
+    logger.info(f"Processing file task: task_id={task_id}, file={file_path}, use_llm={use_llm}")
+    
+    tracker = get_progress_tracker(task_id)
+    if tracker:
+        tracker.update("parsing", 10, "Parsing document...")
 
     try:
         # Parse document
@@ -350,12 +703,55 @@ def process_file_task(task_id: str, file_path: str, domain: str):
         if not text or not text.strip():
             raise ValueError("No text content extracted from document")
 
+        if tracker:
+            tracker.update("extracting", 20, "Extracting concepts...")
+
         # Get domain
         domain_instance = get_domain(domain)
-        api = ReasoningAPI(domain=domain_instance)
+        api = ReasoningAPI(domain=domain_instance, use_llm=use_llm)
 
-        # Process text
-        result = api.process_text(text, include_graph=True)
+        # Process text with progress
+        from dataclasses import asdict
+        
+        if tracker:
+            tracker.update("extracting_concepts", 25, "Extracting concepts...")
+        concepts = api.concept_extractor.extract(text)
+        
+        if tracker:
+            tracker.update("mapping_relationships", 50, "Mapping relationships...")
+        relationships = api.relationship_mapper.map_relationships(concepts, text)
+        
+        if tracker:
+            tracker.update("building_chains", 65, "Building reasoning chains...")
+        chains = api.chain_builder.build_chains(concepts, relationships)
+        
+        if tracker:
+            tracker.update("building_graph", 80, "Building knowledge graph...")
+        
+        result = {
+            "concepts": [asdict(c) for c in concepts],
+            "relationships": [asdict(r) for r in relationships],
+            "reasoning_chains": [asdict(c) for c in chains],
+            "llm_enhanced": use_llm,
+        }
+        
+        try:
+            graph = api._build_knowledge_graph(concepts, relationships)
+            result["knowledge_graph"] = graph.to_dict()
+        except Exception as e:
+            result["knowledge_graph"] = None
+            result["graph_error"] = str(e)
+        
+        if api.domain:
+            try:
+                content_dict = api._prepare_content_for_questions(concepts)
+                questions = api.domain.generate_questions(content_dict)
+                result["questions"] = questions
+            except Exception:
+                result["questions"] = []
+        
+        if tracker:
+            tracker.update("completed", 100, "Analysis complete")
         result["source"] = {
             "type": "file",
             "filename": Path(file_path).name,
@@ -372,6 +768,10 @@ def process_file_task(task_id: str, file_path: str, domain: str):
             }
 
         logger.info(f"File processing completed: task_id={task_id}")
+        
+        # Cleanup tracker
+        if tracker:
+            remove_progress_tracker(task_id)
 
         # Cleanup file
         try:
@@ -382,6 +782,10 @@ def process_file_task(task_id: str, file_path: str, domain: str):
 
     except DocumentParserError as e:
         logger.error(f"Document parsing failed for task {task_id}: {e}")
+        tracker = get_progress_tracker(task_id)
+        if tracker:
+            tracker.update("error", 0, "Failed to parse document")
+            remove_progress_tracker(task_id)
         if task_id in tasks:
             tasks[task_id] = {
                 "status": "error",
@@ -412,6 +816,10 @@ def process_file_task(task_id: str, file_path: str, domain: str):
             pass
     except Exception as e:
         logger.exception(f"Unexpected error processing task {task_id}: {e}")
+        tracker = get_progress_tracker(task_id)
+        if tracker:
+            tracker.update("error", 0, "An unexpected error occurred")
+            remove_progress_tracker(task_id)
         if task_id in tasks:
             tasks[task_id] = {
                 "status": "error",
@@ -434,7 +842,8 @@ async def analyze_url(
     auth: Optional[Dict] = Depends(optional_auth),
 ):
     """Analyze website URL."""
-    logger.info(f"URL analysis request: url={request.url}, domain={request.domain}")
+    use_llm = request.use_llm if request.use_llm is not None else LLM_ENABLED
+    logger.info(f"URL analysis request: url={request.url}, domain={request.domain}, use_llm={use_llm}")
 
     task_id = str(uuid.uuid4())
 
@@ -446,8 +855,12 @@ async def analyze_url(
         "created_at": time.time(),
     }
 
+    # Create progress tracker
+    tracker = create_progress_tracker(task_id)
+    tracker.update("initializing", 5, "Starting URL analysis...")
+    
     # Process in background
-    background_tasks.add_task(process_url_task, task_id, request.url, request.domain)
+    background_tasks.add_task(process_url_task, task_id, request.url, request.domain, use_llm)
 
     return AnalysisResponse(
         task_id=task_id,
@@ -456,9 +869,13 @@ async def analyze_url(
     )
 
 
-def process_url_task(task_id: str, url: str, domain: str):
+def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False):
     """Process URL in background."""
-    logger.info(f"Processing URL task: task_id={task_id}, url={url}")
+    logger.info(f"Processing URL task: task_id={task_id}, url={url}, use_llm={use_llm}")
+    
+    tracker = get_progress_tracker(task_id)
+    if tracker:
+        tracker.update("scraping", 15, "Scraping website content...")
 
     try:
         # Scrape website (includes SSRF protection)
@@ -468,12 +885,55 @@ def process_url_task(task_id: str, url: str, domain: str):
         if not text or not text.strip():
             raise ValueError("No text content extracted from URL")
 
+        if tracker:
+            tracker.update("extracting", 30, "Extracting concepts...")
+
         # Get domain
         domain_instance = get_domain(domain)
-        api = ReasoningAPI(domain=domain_instance)
+        api = ReasoningAPI(domain=domain_instance, use_llm=use_llm)
 
-        # Process text
-        result = api.process_text(text, include_graph=True)
+        # Process text with progress
+        from dataclasses import asdict
+        
+        if tracker:
+            tracker.update("extracting_concepts", 35, "Extracting concepts...")
+        concepts = api.concept_extractor.extract(text)
+        
+        if tracker:
+            tracker.update("mapping_relationships", 55, "Mapping relationships...")
+        relationships = api.relationship_mapper.map_relationships(concepts, text)
+        
+        if tracker:
+            tracker.update("building_chains", 70, "Building reasoning chains...")
+        chains = api.chain_builder.build_chains(concepts, relationships)
+        
+        if tracker:
+            tracker.update("building_graph", 85, "Building knowledge graph...")
+        
+        result = {
+            "concepts": [asdict(c) for c in concepts],
+            "relationships": [asdict(r) for r in relationships],
+            "reasoning_chains": [asdict(c) for c in chains],
+            "llm_enhanced": use_llm,
+        }
+        
+        try:
+            graph = api._build_knowledge_graph(concepts, relationships)
+            result["knowledge_graph"] = graph.to_dict()
+        except Exception as e:
+            result["knowledge_graph"] = None
+            result["graph_error"] = str(e)
+        
+        if api.domain:
+            try:
+                content_dict = api._prepare_content_for_questions(concepts)
+                questions = api.domain.generate_questions(content_dict)
+                result["questions"] = questions
+            except Exception:
+                result["questions"] = []
+        
+        if tracker:
+            tracker.update("completed", 100, "Analysis complete")
         result["source"] = {
             "type": "url",
             "url": url,
@@ -490,9 +950,17 @@ def process_url_task(task_id: str, url: str, domain: str):
             }
 
         logger.info(f"URL processing completed: task_id={task_id}")
+        
+        # Cleanup tracker
+        if tracker:
+            remove_progress_tracker(task_id)
 
     except ScrapingError as e:
         logger.error(f"Scraping failed for task {task_id}: {e}")
+        tracker = get_progress_tracker(task_id)
+        if tracker:
+            tracker.update("error", 0, f"Error: {str(e)}")
+            remove_progress_tracker(task_id)
         if task_id in tasks:
             tasks[task_id] = {
                 "status": "error",
@@ -554,6 +1022,303 @@ async def get_results(task_id: str, auth: Optional[Dict] = Depends(optional_auth
         "result": task.get("result"),
         "domain": task.get("domain"),
     }
+
+
+@app.post("/api/search")
+async def search_results(
+    task_id: str,
+    query: Optional[str] = None,
+    filters: Optional[Dict] = None,
+    auth: Optional[Dict] = Depends(optional_auth),
+):
+    """Advanced search across analysis results.
+
+    Args:
+        task_id: Task ID to search
+        query: Search query string
+        filters: Filter options (type, confidence, etc.)
+
+    Returns:
+        Search results with relevance scores
+    """
+    if task_id not in tasks:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    task = tasks[task_id]
+    if task.get("status") != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task not completed")
+
+    result = task.get("result", {})
+
+    search_engine = AdvancedSearch()
+    search_results = search_engine.search(query or "", result, filters)
+
+    # Convert SearchResult objects to dictionaries
+    formatted_results = {}
+    for category, results_list in search_results.items():
+        formatted_results[category] = [
+            {
+                "item": r.item,
+                "score": r.score,
+                "matched_fields": r.matched_fields,
+                "highlights": r.highlights,
+            }
+            for r in results_list
+        ]
+
+    return {
+        "query": query,
+        "filters": filters,
+        "results": formatted_results,
+        "total": sum(len(r) for r in formatted_results.values()),
+    }
+
+
+@app.get("/api/analytics/{task_id}")
+async def get_analytics(task_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Get analytics and statistics for analysis results.
+
+    Args:
+        task_id: Task ID
+
+    Returns:
+        Analytics data
+    """
+    if task_id not in tasks:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    task = tasks[task_id]
+    if task.get("status") != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task not completed")
+
+    result = task.get("result", {})
+    statistics = Analytics.calculate_statistics(result)
+
+    return {
+        "task_id": task_id,
+        "statistics": statistics,
+    }
+
+
+@app.get("/api/export/{task_id}/markdown")
+async def export_results_markdown(task_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Export analysis results as Markdown."""
+    if task_id not in tasks:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    task = tasks[task_id]
+    if task.get("status") != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task not completed")
+
+    result = task.get("result", {})
+    markdown = export_markdown(result)
+
+    from fastapi.responses import Response
+    return Response(
+        content=markdown,
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f'attachment; filename="reasoning-core-{task_id}.md"',
+        },
+    )
+
+
+@app.get("/api/export/{task_id}/pdf")
+async def export_results_pdf(task_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Export analysis results as PDF."""
+    if task_id not in tasks:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    task = tasks[task_id]
+    if task.get("status") != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task not completed")
+
+    result = task.get("result", {})
+    try:
+        pdf_bytes = export_pdf(result)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF export requires reportlab. Install with: pip install reportlab",
+        )
+
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="reasoning-core-{task_id}.pdf"',
+        },
+    )
+
+
+@app.get("/api/export/{task_id}/html")
+async def export_results_html(task_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+    """Export analysis results as HTML."""
+    if task_id not in tasks:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    task = tasks[task_id]
+    if task.get("status") != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Task not completed")
+
+    result = task.get("result", {})
+    html = export_html(result)
+
+    from fastapi.responses import Response
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={
+            "Content-Disposition": f'attachment; filename="reasoning-core-{task_id}.html"',
+        },
+    )
+
+
+@app.post("/api/analyze/batch")
+async def analyze_batch(
+    background_tasks: BackgroundTasks,
+    request: BatchAnalysisRequest,
+    auth: Optional[Dict] = Depends(optional_auth),
+):
+    """Analyze multiple items in batch."""
+    logger.info(f"Batch analysis request: {len(request.items)} items, domain={request.domain}")
+
+    batch_id = str(uuid.uuid4())
+    use_llm = request.use_llm if request.use_llm is not None else LLM_ENABLED
+
+    # Store batch task
+    tasks[batch_id] = {
+        "status": "processing",
+        "result": None,
+        "type": "batch",
+        "domain": request.domain,
+        "item_count": len(request.items),
+        "completed_items": 0,
+        "results": [],
+        "created_at": time.time(),
+    }
+
+    # Create progress tracker
+    tracker = create_progress_tracker(batch_id)
+    tracker.update("initializing", 5, f"Starting batch analysis of {len(request.items)} items...")
+
+    # Process in background
+    background_tasks.add_task(process_batch_task, batch_id, request.items, request.domain, use_llm)
+
+    return AnalysisResponse(
+        task_id=batch_id,
+        status="processing",
+        message=f"Batch analysis started for {len(request.items)} items",
+    )
+
+
+def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: bool = False):
+    """Process batch analysis."""
+    logger.info(f"Processing batch task: batch_id={batch_id}, items={len(items)}")
+    
+    tracker = get_progress_tracker(batch_id)
+    domain_instance = get_domain(domain)
+    api = ReasoningAPI(domain=domain_instance, use_llm=use_llm)
+    
+    results = []
+    
+    for i, item in enumerate(items):
+        try:
+            # Get text from item
+            text = None
+            source_info = {}
+            
+            if item.get("text"):
+                text = item["text"]
+                source_info = {"type": "text", "index": i}
+            elif item.get("url"):
+                if tracker:
+                    tracker.update("processing", int(10 + (i / len(items)) * 80), 
+                                 f"Processing item {i+1}/{len(items)}: {item['url']}")
+                scraped_data = scrape_website(item["url"])
+                text = scraped_data["text"]
+                source_info = {"type": "url", "url": item["url"], "index": i}
+            elif item.get("file"):
+                # File processing would need file path
+                # For now, skip if file not available
+                logger.warning(f"File item {i} skipped - file processing requires file path")
+                continue
+            
+            if not text or not text.strip():
+                continue
+            
+            # Process item
+            if tracker:
+                tracker.update("processing", int(10 + (i / len(items)) * 80),
+                             f"Analyzing item {i+1}/{len(items)}...")
+            
+            from dataclasses import asdict
+            
+            concepts = api.concept_extractor.extract(text)
+            relationships = api.relationship_mapper.map_relationships(concepts, text)
+            chains = api.chain_builder.build_chains(concepts, relationships)
+            
+            result = {
+                "index": i,
+                "source": source_info,
+                "concepts": [asdict(c) for c in concepts],
+                "relationships": [asdict(r) for r in relationships],
+                "reasoning_chains": [asdict(c) for c in chains],
+                "llm_enhanced": use_llm,
+            }
+            
+            try:
+                graph = api._build_knowledge_graph(concepts, relationships)
+                result["knowledge_graph"] = graph.to_dict()
+            except Exception:
+                result["knowledge_graph"] = None
+            
+            if api.domain:
+                try:
+                    content_dict = api._prepare_content_for_questions(concepts)
+                    questions = api.domain.generate_questions(content_dict)
+                    result["questions"] = questions
+                except Exception:
+                    result["questions"] = []
+            
+            results.append(result)
+            
+            # Update batch progress
+            if batch_id in tasks:
+                tasks[batch_id]["completed_items"] = len(results)
+                tasks[batch_id]["results"] = results
+            
+        except Exception as e:
+            logger.error(f"Error processing batch item {i}: {e}")
+            results.append({
+                "index": i,
+                "error": str(e),
+                "source": item,
+            })
+    
+    # Update batch task
+    if batch_id in tasks:
+        tasks[batch_id] = {
+            "status": "completed",
+            "result": {
+                "items": results,
+                "total": len(items),
+                "completed": len([r for r in results if "error" not in r]),
+                "failed": len([r for r in results if "error" in r]),
+            },
+            "type": "batch",
+            "domain": domain,
+            "item_count": len(items),
+            "completed_items": len(results),
+            "created_at": tasks[batch_id].get("created_at", time.time()),
+        }
+    
+    if tracker:
+        tracker.update("completed", 100, f"Batch analysis complete: {len(results)} items processed")
+        remove_progress_tracker(batch_id)
+    
+    logger.info(f"Batch processing completed: batch_id={batch_id}, processed={len(results)}/{len(items)}")
 
 
 # Exception handlers

@@ -1,11 +1,15 @@
 """Map relationships between concepts."""
 
 from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
+import logging
 from dataclasses import dataclass
 from reasoning_core.extractors.concept_extractor import Concept
 
 if TYPE_CHECKING:
     from reasoning_core.plugins.base_domain import BaseDomain
+    from reasoning_core.llm.base import LLMService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,13 +26,22 @@ class Relationship:
 class RelationshipMapper:
     """Map relationships between extracted concepts."""
 
-    def __init__(self, domain: Optional["BaseDomain"] = None):
+    def __init__(
+        self,
+        domain: Optional["BaseDomain"] = None,
+        llm_service: Optional["LLMService"] = None,
+        use_llm: bool = False,
+    ):
         """Initialize relationship mapper.
 
         Args:
             domain: Domain plugin for domain-specific relationships
+            llm_service: Optional LLM service for enhanced relationship inference
+            use_llm: Whether to use LLM enhancement (default: False)
         """
         self.domain = domain
+        self.llm_service = llm_service
+        self.use_llm = use_llm and llm_service is not None
 
     def map_relationships(
         self, concepts: List[Concept], text: str, domain_hints: Optional[Dict] = None
@@ -70,6 +83,21 @@ class RelationshipMapper:
         # Generic relationship detection (fallback if no domain or domain mapping failed)
         if not relationships:
             relationships = self._generic_relationship_detection(concepts, text)
+
+        # LLM enhancement (hybrid approach)
+        if self.use_llm and self.llm_service and self.llm_service.is_available():
+            try:
+                domain_name = self.domain.get_name() if self.domain else "generic"
+                llm_relationships = self.llm_service.infer_relationships(
+                    concepts, text, domain_name, relationships
+                )
+                
+                if llm_relationships:
+                    # LLM service already merges with existing, but ensure no duplicates
+                    relationships = llm_relationships
+                    
+            except Exception as e:
+                logger.warning(f"LLM relationship enhancement failed: {e}, using pattern-based results only")
 
         return relationships
 

@@ -34,6 +34,29 @@ if [ -d "$PROJECT_ROOT/web" ]; then
     cp -r "$PROJECT_ROOT/web" "$PAYLOAD_DIR/$INSTALL_DIR/"
     # Don't copy node_modules - will be installed
     rm -rf "$PAYLOAD_DIR/$INSTALL_DIR/web/node_modules" 2>/dev/null || true
+    rm -rf "$PAYLOAD_DIR/$INSTALL_DIR/web/dist" 2>/dev/null || true
+    rm -rf "$PAYLOAD_DIR/$INSTALL_DIR/web/.vite" 2>/dev/null || true
+fi
+
+# Copy installation scripts
+if [ -f "$PROJECT_ROOT/install.sh" ]; then
+    cp "$PROJECT_ROOT/install.sh" "$PAYLOAD_DIR/$INSTALL_DIR/"
+    chmod +x "$PAYLOAD_DIR/$INSTALL_DIR/install.sh"
+fi
+
+if [ -f "$PROJECT_ROOT/install-unified.sh" ]; then
+    cp "$PROJECT_ROOT/install-unified.sh" "$PAYLOAD_DIR/$INSTALL_DIR/"
+    chmod +x "$PAYLOAD_DIR/$INSTALL_DIR/install-unified.sh"
+fi
+
+if [ -f "$PROJECT_ROOT/start.sh" ]; then
+    cp "$PROJECT_ROOT/start.sh" "$PAYLOAD_DIR/$INSTALL_DIR/"
+    chmod +x "$PAYLOAD_DIR/$INSTALL_DIR/start.sh"
+fi
+
+if [ -f "$PROJECT_ROOT/run_web.sh" ]; then
+    cp "$PROJECT_ROOT/run_web.sh" "$PAYLOAD_DIR/$INSTALL_DIR/"
+    chmod +x "$PAYLOAD_DIR/$INSTALL_DIR/run_web.sh"
 fi
 
 # Copy installer scripts

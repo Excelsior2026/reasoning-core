@@ -20,11 +20,57 @@ Reasoning Core is a Python library that extracts expert reasoning patterns from 
 
 ## 🚀 Quick Start
 
-### Installation
+### Installation Options
+
+#### Option 1: Installer Packages (Recommended)
+
+**macOS**: Download and run `ReasoningCore-0.1.0-macos.pkg`  
+**Windows**: Download and run `ReasoningCore-0.1.0-windows-setup.exe` (as Administrator)
+
+These installers automatically:
+- Install Python 3.9+ (if needed)
+- Install Node.js (if needed)
+- Install all dependencies
+- Set up the application
+
+See [LOCAL_INSTALL.md](LOCAL_INSTALL.md) for details.
+
+#### Option 2: From PyPI
 
 ```bash
 pip install reasoning-core
 ```
+
+#### Option 3: Unified Installer (Recommended for Local Use)
+
+**macOS/Linux:**
+```bash
+./install-unified.sh
+```
+
+**Windows:**
+```cmd
+install-unified.bat
+```
+
+This unified installer automatically:
+- ✅ Checks and installs all dependencies
+- ✅ Starts the servers automatically
+- ✅ Opens both API and Web UI
+
+To install without starting:
+```bash
+./install-unified.sh --no-start  # macOS/Linux
+install-unified.bat --no-start    # Windows
+```
+
+#### Option 4: Local Installation Script
+
+```bash
+./install.sh
+```
+
+This script checks prerequisites and installs all dependencies (without starting servers).
 
 ### Basic Usage
 
@@ -226,11 +272,57 @@ Text Input
 
 ## 📦 Installation from Source
 
+### Quick Install & Start
+
+**macOS/Linux:**
+```bash
+git clone https://github.com/Excelsior2026/reasoning-core.git
+cd reasoning-core
+./install-unified.sh
+```
+
+**Windows:**
+```cmd
+git clone https://github.com/Excelsior2026/reasoning-core.git
+cd reasoning-core
+install-unified.bat
+```
+
+This will install everything and start the servers automatically!
+
+### Quick Start (if already installed)
+
+**macOS/Linux:**
+```bash
+./start.sh
+```
+
+**Windows:**
+```cmd
+start.bat
+```
+
+### Manual Install
+
+```bash
+git clone https://github.com/Excelsior2026/reasoning-core.git
+cd reasoning-core
+./install.sh
+```
+
+### Manual Install
+
 ```bash
 git clone https://github.com/Excelsior2026/reasoning-core.git
 cd reasoning-core
 pip install -e .
+pip install -r requirements-web.txt
+cd web && npm install && cd ..
 ```
+
+### Building Installers
+
+To create installer packages for macOS or Windows, see [installers/BUILD_INSTRUCTIONS.md](installers/BUILD_INSTRUCTIONS.md).
 
 ## 🧪 Development
 

@@ -2,10 +2,14 @@
 
 from typing import List, Dict, Optional, TYPE_CHECKING
 import re
+import logging
 from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from reasoning_core.plugins.base_domain import BaseDomain
+    from reasoning_core.llm.base import LLMService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,13 +26,22 @@ class Concept:
 class ConceptExtractor:
     """Extract concepts from text using domain-specific patterns."""
 
-    def __init__(self, domain: Optional["BaseDomain"] = None):
+    def __init__(
+        self,
+        domain: Optional["BaseDomain"] = None,
+        llm_service: Optional["LLMService"] = None,
+        use_llm: bool = False,
+    ):
         """Initialize concept extractor.
 
         Args:
             domain: Domain plugin for domain-specific extraction
+            llm_service: Optional LLM service for enhanced extraction
+            use_llm: Whether to use LLM enhancement (default: False)
         """
         self.domain = domain
+        self.llm_service = llm_service
+        self.use_llm = use_llm and llm_service is not None
 
     def extract(self, text: str, domain_hints: Optional[Dict] = None) -> List[Concept]:
         """Extract concepts from text.
@@ -64,6 +77,19 @@ class ConceptExtractor:
         # Generic extraction (fallback if no domain or domain extraction failed)
         if not concepts:
             concepts = self._generic_extraction(text)
+
+        # LLM enhancement (hybrid approach)
+        if self.use_llm and self.llm_service and self.llm_service.is_available():
+            try:
+                domain_name = self.domain.get_name() if self.domain else "generic"
+                llm_concepts = self.llm_service.extract_concepts(text, domain_name, concepts)
+                
+                if llm_concepts:
+                    # Merge and deduplicate concepts
+                    concepts = self._merge_concepts(concepts, llm_concepts)
+                    
+            except Exception as e:
+                logger.warning(f"LLM enhancement failed: {e}, using pattern-based results only")
 
         return concepts
 
@@ -114,24 +140,70 @@ class ConceptExtractor:
         context_end = min(len(text), end + window)
         return text[context_start:context_end]
 
-    def extract_with_llm(self, text: str, llm_service: Optional[object] = None) -> List[Concept]:
-        """Extract concepts using LLM (not yet implemented).
+    def _merge_concepts(self, pattern_concepts: List[Concept], llm_concepts: List[Concept]) -> List[Concept]:
+        """Merge pattern-based and LLM concepts, removing duplicates.
 
-        This method is a placeholder for future LLM-based extraction.
-        Currently falls back to standard extraction.
+        Args:
+            pattern_concepts: Concepts from pattern extraction
+            llm_concepts: Concepts from LLM extraction
+
+        Returns:
+            Merged list of unique concepts
+        """
+        # Create a set of existing concept keys (text, type, position)
+        existing_keys = {
+            (c.text.lower(), c.type, c.position)
+            for c in pattern_concepts
+        }
+        
+        merged = list(pattern_concepts)
+        
+        # Add LLM concepts that aren't duplicates
+        for llm_concept in llm_concepts:
+            key = (llm_concept.text.lower(), llm_concept.type, llm_concept.position)
+            
+            # Check for near-duplicates (similar text)
+            is_duplicate = False
+            for existing in merged:
+                if (llm_concept.text.lower() == existing.text.lower() and 
+                    llm_concept.type == existing.type):
+                    # Update confidence if LLM is higher
+                    if llm_concept.confidence > existing.confidence:
+                        existing.confidence = llm_concept.confidence
+                        existing.context = llm_concept.context
+                    is_duplicate = True
+                    break
+                
+                # Fuzzy match for similar concepts
+                if (llm_concept.text.lower() in existing.text.lower() or 
+                    existing.text.lower() in llm_concept.text.lower()):
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                merged.append(llm_concept)
+        
+        return merged
+
+    def extract_with_llm(self, text: str, llm_service: Optional["LLMService"] = None) -> List[Concept]:
+        """Extract concepts using LLM.
 
         Args:
             text: Input text
-            llm_service: LLM service for extraction (not yet used)
+            llm_service: LLM service for extraction
 
         Returns:
-            List of extracted concepts (using standard extraction for now)
-
-        Note:
-            This method will be implemented in a future release to integrate
-            with Ollama or other LLM services for enhanced concept extraction.
+            List of extracted concepts
         """
-        # TODO: Implement LLM-based extraction
-        # This will integrate with Ollama or other LLM services
-        # For now, use standard extraction
+        if llm_service and llm_service.is_available():
+            old_llm = self.llm_service
+            old_use_llm = self.use_llm
+            self.llm_service = llm_service
+            self.use_llm = True
+            try:
+                result = self.extract(text)
+            finally:
+                self.llm_service = old_llm
+                self.use_llm = old_use_llm
+            return result
         return self.extract(text)

@@ -2,10 +2,14 @@ import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import axios from 'axios'
 import { DomainSelector } from './DomainSelector'
+import { ProgressBar } from './ProgressBar'
 
 export function FileUpload({ onResults, onError, onStartLoading, loading }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [domain, setDomain] = useState('generic')
+  const [useLLM, setUseLLM] = useState(false)
+  const [taskId, setTaskId] = useState(null)
+  const [showProgress, setShowProgress] = useState(false)
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles && acceptedFiles[0]) {
@@ -29,11 +33,15 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
     if (!selectedFile) return
 
     onStartLoading()
+    setShowProgress(true)
 
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('domain', domain)
+      if (useLLM) {
+        formData.append('use_llm', 'true')
+      }
 
       const response = await axios.post('/api/analyze/file', formData, {
         headers: {
@@ -41,13 +49,25 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
         },
       })
 
-      const taskId = response.data.task_id
+      const newTaskId = response.data.task_id
+      setTaskId(newTaskId)
 
-      // Poll for results
-      await pollResults(taskId)
+      // Poll for results (fallback if SSE doesn't work)
+      await pollResults(newTaskId)
     } catch (err) {
       onError(err.response?.data?.detail || err.message || 'Upload failed')
+      setShowProgress(false)
     }
+  }
+
+  const handleProgressComplete = (data) => {
+    setShowProgress(false)
+    onResults(data)
+  }
+
+  const handleProgressError = (err) => {
+    setShowProgress(false)
+    onError(err)
   }
 
   const pollResults = async (taskId) => {
@@ -89,6 +109,28 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
       <h3 className="text-xl font-semibold text-gray-900 mb-4">Upload Document</h3>
       
       <DomainSelector value={domain} onChange={setDomain} />
+      
+      {/* LLM Toggle */}
+      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Use LLM Enhancement
+          </label>
+          <p className="text-xs text-gray-500 mt-1">
+            Enable AI-powered concept extraction and relationship inference
+          </p>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useLLM}
+            onChange={(e) => setUseLLM(e.target.checked)}
+            className="sr-only peer"
+            disabled={loading}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+        </label>
+      </div>
 
       <div
         {...getRootProps()}
@@ -123,11 +165,22 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
       {selectedFile && (
         <button
           onClick={handleUpload}
-          disabled={loading}
+          disabled={loading || showProgress}
           className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? 'Processing...' : 'Analyze Document'}
+          {loading || showProgress ? 'Processing...' : 'Analyze Document'}
         </button>
+      )}
+
+      {/* Progress Bar */}
+      {showProgress && taskId && (
+        <div className="mt-4">
+          <ProgressBar
+            taskId={taskId}
+            onComplete={handleProgressComplete}
+            onError={handleProgressError}
+          />
+        </div>
       )}
     </div>
   )

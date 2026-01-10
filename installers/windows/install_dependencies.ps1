@@ -83,13 +83,24 @@ Write-Host "📦 Installing Python dependencies..." -ForegroundColor Cyan
     requests>=2.31.0 `
     beautifulsoup4>=4.12.0 `
     PyPDF2>=3.0.0 `
-    python-docx>=1.0.0
+    python-docx>=1.0.0 `
+    aiofiles>=23.0.0 `
+    pyjwt>=2.8.0 `
+    "python-jose[cryptography]>=3.3.0"
 
 # Install reasoning-core itself if source exists
-$sourceDir = Join-Path $PSScriptRoot "..\.."
-if (Test-Path (Join-Path $sourceDir "src")) {
-    Write-Host "📦 Installing reasoning-core..." -ForegroundColor Cyan
-    & $pythonPath -m pip install "$sourceDir"
+if (Test-Path (Join-Path $InstallDir "src")) {
+    Write-Host "📦 Installing reasoning-core from source..." -ForegroundColor Cyan
+    Push-Location $InstallDir
+    & $pythonPath -m pip install -e .
+    Pop-Location
+} elseif (Test-Path (Join-Path $PSScriptRoot "..\..\src")) {
+    Write-Host "📦 Installing reasoning-core from source..." -ForegroundColor Cyan
+    $sourceDir = Join-Path $PSScriptRoot "..\.."
+    & $pythonPath -m pip install -e $sourceDir
+} else {
+    Write-Host "📦 Installing reasoning-core from package..." -ForegroundColor Cyan
+    & $pythonPath -m pip install reasoning-core
 }
 
 # Check for Node.js
