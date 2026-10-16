@@ -1,7 +1,8 @@
 """Build reasoning chains from concepts and relationships."""
 
-from typing import List, Dict, Optional, TYPE_CHECKING
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, List, Optional
+
 from reasoning_core.extractors.concept_extractor import Concept
 from reasoning_core.extractors.relationship_mapper import Relationship
 

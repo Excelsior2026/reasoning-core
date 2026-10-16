@@ -1,11 +1,12 @@
 """Meeting domain plugin for agenda and note-taking extraction."""
 
-from typing import List, Dict, Optional
-from reasoning_core.plugins.base_domain import BaseDomain
-from reasoning_core.extractors.concept_extractor import Concept
-from reasoning_core.extractors.relationship_mapper import Relationship
-from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
 import re
+from typing import Dict, List, Optional
+
+from reasoning_core.extractors.concept_extractor import Concept
+from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
+from reasoning_core.extractors.relationship_mapper import Relationship
+from reasoning_core.plugins.base_domain import BaseDomain
 
 
 class MeetingDomain(BaseDomain):
@@ -202,31 +203,23 @@ class MeetingDomain(BaseDomain):
         # Find agenda item
         agenda_items = [c for c in concepts if c.type == "agenda_items"]
         if agenda_items:
-            steps.append(
-                ReasoningStep(concept=agenda_items[0], action="discuss", rationale="Meeting agenda item")
-            )
+            steps.append(ReasoningStep(concept=agenda_items[0], action="discuss", rationale="Meeting agenda item"))
 
         # Find decision
         decisions = [c for c in concepts if c.type == "decisions"]
         if decisions:
-            steps.append(
-                ReasoningStep(concept=decisions[0], action="decide", rationale="Consensus reached")
-            )
+            steps.append(ReasoningStep(concept=decisions[0], action="decide", rationale="Consensus reached"))
 
         # Find action item
         actions = [c for c in concepts if c.type == "action_items"]
         if actions:
-            steps.append(
-                ReasoningStep(concept=actions[0], action="assign", rationale="Action item created")
-            )
+            steps.append(ReasoningStep(concept=actions[0], action="assign", rationale="Action item created"))
 
         # Find owner
         participants = [c for c in concepts if c.type == "participants"]
         if participants:
             steps.append(
-                ReasoningStep(
-                    concept=participants[0], action="own", rationale="Action assigned to participant"
-                )
+                ReasoningStep(concept=participants[0], action="own", rationale="Action assigned to participant")
             )
 
         if len(steps) >= 2:
@@ -242,23 +235,17 @@ class MeetingDomain(BaseDomain):
         # Find decision
         decisions = [c for c in concepts if c.type == "decisions"]
         if decisions:
-            steps.append(
-                ReasoningStep(concept=decisions[0], action="decide", rationale="Meeting decision")
-            )
+            steps.append(ReasoningStep(concept=decisions[0], action="decide", rationale="Meeting decision"))
 
         # Find action
         actions = [c for c in concepts if c.type == "action_items"]
         if actions:
-            steps.append(
-                ReasoningStep(concept=actions[0], action="execute", rationale="Action taken")
-            )
+            steps.append(ReasoningStep(concept=actions[0], action="execute", rationale="Action taken"))
 
         # Find outcome
         outcomes = [c for c in concepts if c.type == "outcomes"]
         if outcomes:
-            steps.append(
-                ReasoningStep(concept=outcomes[0], action="achieve", rationale="Outcome reached")
-            )
+            steps.append(ReasoningStep(concept=outcomes[0], action="achieve", rationale="Outcome reached"))
 
         if len(steps) >= 2:
             return ReasoningChain(type="outcome", steps=steps, confidence=0.7, domain="meeting")

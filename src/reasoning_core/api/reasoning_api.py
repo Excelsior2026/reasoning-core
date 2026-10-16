@@ -1,20 +1,15 @@
 """REST API for reasoning extraction."""
 
-from typing import Dict, Optional
 from dataclasses import asdict
+from typing import Dict, Optional
+
 from reasoning_core.extractors.concept_extractor import ConceptExtractor
-from reasoning_core.extractors.relationship_mapper import RelationshipMapper
 from reasoning_core.extractors.reasoning_chain_builder import ReasoningChainBuilder
-from reasoning_core.graph.knowledge_graph import KnowledgeGraph, Node, Edge
-from reasoning_core.plugins.base_domain import BaseDomain
+from reasoning_core.extractors.relationship_mapper import RelationshipMapper
+from reasoning_core.graph.knowledge_graph import Edge, KnowledgeGraph, Node
 from reasoning_core.llm import OllamaService
-from reasoning_core.web.config import (
-    LLM_ENABLED,
-    LLM_MODEL,
-    LLM_BASE_URL,
-    LLM_USE_GPU,
-    LLM_TIMEOUT,
-)
+from reasoning_core.plugins.base_domain import BaseDomain
+from reasoning_core.web.config import LLM_BASE_URL, LLM_ENABLED, LLM_MODEL, LLM_TIMEOUT, LLM_USE_GPU
 
 
 class ProcessingError(Exception):
@@ -49,11 +44,11 @@ class ReasoningAPI:
             raise TypeError(f"domain must be an instance of BaseDomain, got {type(domain)}")
 
         self.domain = domain
-        
+
         # Initialize LLM service if enabled
         self.use_llm = use_llm if use_llm is not None else LLM_ENABLED
         self.llm_service = llm_service
-        
+
         if self.use_llm and self.llm_service is None:
             try:
                 self.llm_service = OllamaService(
@@ -70,7 +65,7 @@ class ReasoningAPI:
                 # LLM not available, fallback to pattern-based
                 self.use_llm = False
                 self.llm_service = None
-        
+
         # Initialize extractors with LLM support
         self.concept_extractor = ConceptExtractor(
             domain=domain,
@@ -84,7 +79,7 @@ class ReasoningAPI:
         )
         self.chain_builder = ReasoningChainBuilder(domain=domain)
 
-    def process_text(self, text: str, include_graph: bool = True, use_llm: Optional[bool] = None) -> Dict:
+    def process_text(self, text: str, include_graph: bool = True, use_llm: Optional[bool] = None) -> Dict:  # noqa: C901
         """Process text and extract reasoning.
 
         Args:
@@ -113,7 +108,7 @@ class ReasoningAPI:
                 old_use_llm_rel = self.relationship_mapper.use_llm
                 self.concept_extractor.use_llm = use_llm and self.llm_service is not None
                 self.relationship_mapper.use_llm = use_llm and self.llm_service is not None
-            
+
             # Extract concepts
             concepts = self.concept_extractor.extract(text)
 
@@ -127,7 +122,7 @@ class ReasoningAPI:
             if use_llm is not None:
                 self.concept_extractor.use_llm = old_use_llm
                 self.relationship_mapper.use_llm = old_use_llm_rel
-            
+
             # Use asdict instead of vars for better dataclass support
             result = {
                 "concepts": [asdict(c) for c in concepts],
@@ -161,7 +156,7 @@ class ReasoningAPI:
 
             return result
 
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             # Re-raise validation errors as-is
             raise
         except Exception as e:
@@ -181,7 +176,6 @@ class ReasoningAPI:
         Raises:
             ProcessingError: If graph building fails
         """
-        import uuid
         from collections import Counter
 
         graph = KnowledgeGraph()
@@ -231,7 +225,7 @@ class ReasoningAPI:
                 )
                 try:
                     graph.add_edge(edge)
-                except ValueError as e:
+                except ValueError:
                     # Skip invalid edges (nodes not found) but continue processing
                     continue
 

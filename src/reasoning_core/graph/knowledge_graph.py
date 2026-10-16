@@ -1,8 +1,8 @@
 """Knowledge graph data structure and operations."""
 
-from typing import List, Dict, Set, Optional, Tuple
-from dataclasses import dataclass, field
 import json
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set
 
 
 @dataclass

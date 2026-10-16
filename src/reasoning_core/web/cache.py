@@ -3,9 +3,8 @@
 import hashlib
 import json
 import time
-from typing import Dict, Any, Optional
 from functools import wraps
-from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 
 class MemoryCache:
@@ -30,7 +29,7 @@ class MemoryCache:
         Returns:
             Cache key string
         """
-        key_data = json.dumps({'args': args, 'kwargs': kwargs}, sort_keys=True)
+        key_data = json.dumps({"args": args, "kwargs": kwargs}, sort_keys=True)
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def get(self, key: str) -> Optional[Any]:
@@ -46,13 +45,13 @@ class MemoryCache:
             return None
 
         entry = self.cache[key]
-        
+
         # Check expiration
-        if entry['expires_at'] < time.time():
+        if entry["expires_at"] < time.time():
             del self.cache[key]
             return None
 
-        return entry['value']
+        return entry["value"]
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in cache.
@@ -64,11 +63,11 @@ class MemoryCache:
         """
         ttl = ttl or self.default_ttl
         expires_at = time.time() + ttl
-        
+
         self.cache[key] = {
-            'value': value,
-            'expires_at': expires_at,
-            'created_at': time.time(),
+            "value": value,
+            "expires_at": expires_at,
+            "created_at": time.time(),
         }
 
     def delete(self, key: str) -> None:
@@ -90,11 +89,8 @@ class MemoryCache:
             Number of entries removed
         """
         now = time.time()
-        expired_keys = [
-            key for key, entry in self.cache.items()
-            if entry['expires_at'] < now
-        ]
-        
+        expired_keys = [key for key, entry in self.cache.items() if entry["expires_at"] < now]
+
         for key in expired_keys:
             del self.cache[key]
 
@@ -107,17 +103,14 @@ class MemoryCache:
             Statistics dictionary
         """
         now = time.time()
-        active_entries = sum(
-            1 for entry in self.cache.values()
-            if entry['expires_at'] >= now
-        )
+        active_entries = sum(1 for entry in self.cache.values() if entry["expires_at"] >= now)
         expired_entries = len(self.cache) - active_entries
 
         return {
-            'total_entries': len(self.cache),
-            'active_entries': active_entries,
-            'expired_entries': expired_entries,
-            'default_ttl': self.default_ttl,
+            "total_entries": len(self.cache),
+            "active_entries": active_entries,
+            "expired_entries": expired_entries,
+            "default_ttl": self.default_ttl,
         }
 
 
@@ -135,12 +128,13 @@ def cache_analysis_result(ttl: Optional[int] = None):
     Returns:
         Decorated function
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             # Generate cache key from function name and arguments
             cache_key = f"{func.__name__}:{_analysis_cache._make_key(*args, **kwargs)}"
-            
+
             # Try to get from cache
             cached_result = _analysis_cache.get(cache_key)
             if cached_result is not None:
@@ -148,15 +142,16 @@ def cache_analysis_result(ttl: Optional[int] = None):
 
             # Call function and cache result
             result = await func(*args, **kwargs)
-            
+
             # Only cache successful results
             if result and isinstance(result, dict):
-                if result.get('status') == 'completed':
+                if result.get("status") == "completed":
                     _analysis_cache.set(cache_key, result, ttl)
 
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -174,10 +169,10 @@ def get_cache_key_for_text(text: str, domain: str, use_llm: bool = False) -> str
     # Use text hash for cache key (first 1000 chars to avoid huge keys)
     text_sample = text[:1000] if len(text) > 1000 else text
     key_data = {
-        'text_hash': hashlib.sha256(text_sample.encode()).hexdigest(),
-        'text_length': len(text),
-        'domain': domain,
-        'use_llm': use_llm,
+        "text_hash": hashlib.sha256(text_sample.encode()).hexdigest(),
+        "text_length": len(text),
+        "domain": domain,
+        "use_llm": use_llm,
     }
     key_string = json.dumps(key_data, sort_keys=True)
     return hashlib.md5(key_string.encode()).hexdigest()
@@ -226,11 +221,11 @@ def cleanup_caches() -> Dict[str, int]:
     """
     analysis_cleaned = _analysis_cache.cleanup_expired()
     result_cleaned = _result_cache.cleanup_expired()
-    
+
     return {
-        'analysis_cache_cleaned': analysis_cleaned,
-        'result_cache_cleaned': result_cleaned,
-        'total_cleaned': analysis_cleaned + result_cleaned,
+        "analysis_cache_cleaned": analysis_cleaned,
+        "result_cache_cleaned": result_cleaned,
+        "total_cleaned": analysis_cleaned + result_cleaned,
     }
 
 
@@ -241,6 +236,6 @@ def get_cache_stats() -> Dict[str, Any]:
         Statistics for all caches
     """
     return {
-        'analysis_cache': _analysis_cache.get_stats(),
-        'result_cache': _result_cache.get_stats(),
+        "analysis_cache": _analysis_cache.get_stats(),
+        "result_cache": _result_cache.get_stats(),
     }

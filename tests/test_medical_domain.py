@@ -1,6 +1,7 @@
 """Tests for medical domain plugin."""
 
 import pytest
+
 from reasoning_core.plugins.medical_domain import MedicalDomain
 
 

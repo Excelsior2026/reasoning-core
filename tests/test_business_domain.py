@@ -1,6 +1,7 @@
 """Tests for business domain plugin."""
 
 import pytest
+
 from reasoning_core.plugins.business_domain import BusinessDomain
 
 

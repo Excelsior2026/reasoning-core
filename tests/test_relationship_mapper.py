@@ -1,9 +1,10 @@
 """Tests for relationship mapping."""
 
 import pytest
-from reasoning_core.extractors.relationship_mapper import RelationshipMapper, Relationship
-from reasoning_core.plugins.medical_domain import MedicalDomain
+
+from reasoning_core.extractors.relationship_mapper import Relationship, RelationshipMapper
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 class TestRelationshipMapper:

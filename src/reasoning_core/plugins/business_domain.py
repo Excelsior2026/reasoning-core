@@ -1,11 +1,12 @@
 """Business domain plugin for business reasoning extraction."""
 
-from typing import List, Dict
-from reasoning_core.plugins.base_domain import BaseDomain
-from reasoning_core.extractors.concept_extractor import Concept
-from reasoning_core.extractors.relationship_mapper import Relationship
-from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
 import re
+from typing import Dict, List
+
+from reasoning_core.extractors.concept_extractor import Concept
+from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
+from reasoning_core.extractors.relationship_mapper import Relationship
+from reasoning_core.plugins.base_domain import BaseDomain
 
 
 class BusinessDomain(BaseDomain):
@@ -134,7 +135,9 @@ class BusinessDomain(BaseDomain):
         end = max(source.position + len(source.text), target.position + len(target.text))
         return text[max(0, start - 20) : min(len(text), end + 20)]
 
-    def build_reasoning_chains(self, concepts: List[Concept], relationships: List[Relationship]) -> List[ReasoningChain]:
+    def build_reasoning_chains(
+        self, concepts: List[Concept], relationships: List[Relationship]
+    ) -> List[ReasoningChain]:
         """Build business reasoning chains."""
         chains = []
 
@@ -157,16 +160,12 @@ class BusinessDomain(BaseDomain):
         # Find strategy
         strategies = [c for c in concepts if c.type == "strategies"]
         if strategies:
-            steps.append(
-                ReasoningStep(concept=strategies[0], action="apply", rationale="Strategic approach")
-            )
+            steps.append(ReasoningStep(concept=strategies[0], action="apply", rationale="Strategic approach"))
 
         # Find metric
         metrics = [c for c in concepts if c.type == "metrics"]
         if metrics:
-            steps.append(
-                ReasoningStep(concept=metrics[0], action="measure", rationale="Track effectiveness")
-            )
+            steps.append(ReasoningStep(concept=metrics[0], action="measure", rationale="Track effectiveness"))
 
         if len(steps) >= 2:
             return ReasoningChain(type="sales", steps=steps, confidence=0.75, domain="business")

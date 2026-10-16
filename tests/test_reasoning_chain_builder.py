@@ -1,9 +1,10 @@
 """Tests for reasoning chain building."""
 
 import pytest
-from reasoning_core.extractors.reasoning_chain_builder import ReasoningChainBuilder, ReasoningChain
-from reasoning_core.plugins.medical_domain import MedicalDomain
+
+from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningChainBuilder
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 class TestReasoningChainBuilder:
@@ -30,9 +31,15 @@ class TestReasoningChainBuilder:
         ]
 
         relationships = [
-            Relationship(source=concepts[0], target=concepts[2], type="indicates", confidence=0.8, evidence="pain indicates MI"),
-            Relationship(source=concepts[1], target=concepts[2], type="confirms", confidence=0.9, evidence="ECG confirms MI"),
-            Relationship(source=concepts[3], target=concepts[2], type="treats", confidence=0.85, evidence="aspirin treats MI"),
+            Relationship(
+                source=concepts[0], target=concepts[2], type="indicates", confidence=0.8, evidence="pain indicates MI"
+            ),
+            Relationship(
+                source=concepts[1], target=concepts[2], type="confirms", confidence=0.9, evidence="ECG confirms MI"
+            ),
+            Relationship(
+                source=concepts[3], target=concepts[2], type="treats", confidence=0.85, evidence="aspirin treats MI"
+            ),
         ]
 
         builder = ReasoningChainBuilder(domain=medical_domain)
@@ -60,8 +67,20 @@ class TestReasoningChainBuilder:
         ]
 
         relationships = [
-            Relationship(source=concepts[0], target=concepts[1], type="addressed_by", confidence=0.8, evidence="pain addressed by strategy"),
-            Relationship(source=concepts[1], target=concepts[2], type="measured_by", confidence=0.85, evidence="strategy measured by ROI"),
+            Relationship(
+                source=concepts[0],
+                target=concepts[1],
+                type="addressed_by",
+                confidence=0.8,
+                evidence="pain addressed by strategy",
+            ),
+            Relationship(
+                source=concepts[1],
+                target=concepts[2],
+                type="measured_by",
+                confidence=0.85,
+                evidence="strategy measured by ROI",
+            ),
         ]
 
         builder = ReasoningChainBuilder(domain=business_domain)

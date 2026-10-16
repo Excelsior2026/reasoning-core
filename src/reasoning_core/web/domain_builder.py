@@ -1,17 +1,17 @@
 """Custom domain builder functionality."""
 
 import json
-import os
-from typing import Dict, List, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from reasoning_core.plugins.base_domain import BaseDomain
+
 try:
     from reasoning_core.extractors.concept_extractor import Concept
 except ImportError:
     # Fallback if Concept not directly importable
     from dataclasses import dataclass
-    from typing import Optional
-    
+
     @dataclass
     class Concept:
         text: str
@@ -31,18 +31,18 @@ class CustomDomain(BaseDomain):
             config: Domain configuration dictionary
         """
         self.config = config
-        self.name = config.get('name', 'custom')
-        self.description = config.get('description', '')
-        
+        self.name = config.get("name", "custom")
+        self.description = config.get("description", "")
+
         # Concept types
-        self.concept_types = config.get('concept_types', [])
-        
+        self.concept_types = config.get("concept_types", [])
+
         # Patterns
-        self.concept_patterns = config.get('concept_patterns', {})
-        self.relationship_patterns = config.get('relationship_patterns', {})
-        
+        self.concept_patterns = config.get("concept_patterns", {})
+        self.relationship_patterns = config.get("relationship_patterns", {})
+
         # Rules
-        self.rules = config.get('rules', [])
+        self.rules = config.get("rules", [])
 
     def get_concept_types(self) -> List[str]:
         """Get list of concept types for this domain.
@@ -90,18 +90,21 @@ class CustomDomain(BaseDomain):
     def extract_concepts(self, text: str) -> List:
         """Extract concepts using domain patterns."""
         from reasoning_core.extractors.concept_extractor import ConceptExtractor
+
         extractor = ConceptExtractor(domain=self)
         return extractor.extract(text)
 
     def identify_relationships(self, concepts: List, text: str) -> List:
         """Identify relationships using domain patterns."""
         from reasoning_core.extractors.relationship_mapper import RelationshipMapper
+
         mapper = RelationshipMapper(domain=self)
         return mapper.map_relationships(concepts, text)
 
     def build_reasoning_chains(self, concepts: List, relationships: List) -> List:
         """Build reasoning chains."""
         from reasoning_core.extractors.reasoning_chain_builder import ReasoningChainBuilder
+
         builder = ReasoningChainBuilder(domain=self)
         return builder.build_chains(concepts, relationships)
 
@@ -109,14 +112,14 @@ class CustomDomain(BaseDomain):
         """Generate questions from content."""
         # Simple question generation based on concepts
         questions = []
-        concepts = content.get('concepts', [])
-        
+        concepts = content.get("concepts", [])
+
         if concepts:
             # Generate questions about key concepts
             for concept in concepts[:5]:  # Limit to first 5
-                concept_text = concept.text if hasattr(concept, 'text') else concept.get('text', '')
+                concept_text = concept.text if hasattr(concept, "text") else concept.get("text", "")
                 questions.append(f"What is the significance of {concept_text}?")
-        
+
         return questions
 
     def get_terminology_mapping(self) -> Dict:
@@ -130,10 +133,11 @@ class CustomDomain(BaseDomain):
                 # Try to extract literal terms from regex patterns
                 # This is simplified - in practice would parse regex better
                 import re
+
                 # Remove regex anchors and special chars, keep word chars
-                terms.extend(re.findall(r'\b\w+\b', pattern))
+                terms.extend(re.findall(r"\b\w+\b", pattern))
             terminology[concept_type] = list(set(terms))
-        
+
         return terminology
 
 
@@ -148,8 +152,8 @@ class DomainBuilder:
         """
         if domains_dir is None:
             # Default to user's home directory
-            domains_dir = Path.home() / '.reasoning-core' / 'domains'
-        
+            domains_dir = Path.home() / ".reasoning-core" / "domains"
+
         self.domains_dir = Path(domains_dir)
         self.domains_dir.mkdir(parents=True, exist_ok=True)
 
@@ -162,16 +166,16 @@ class DomainBuilder:
         Returns:
             Domain ID
         """
-        domain_id = config.get('id') or self._generate_domain_id(config.get('name', 'custom'))
-        
+        domain_id = config.get("id") or self._generate_domain_id(config.get("name", "custom"))
+
         # Validate configuration
         self._validate_config(config)
-        
+
         # Save to file
         domain_file = self.domains_dir / f"{domain_id}.json"
-        with open(domain_file, 'w') as f:
+        with open(domain_file, "w") as f:
             json.dump(config, f, indent=2)
-        
+
         return domain_id
 
     def load_domain(self, domain_id: str) -> Optional[Dict[str, Any]]:
@@ -184,11 +188,11 @@ class DomainBuilder:
             Domain configuration or None
         """
         domain_file = self.domains_dir / f"{domain_id}.json"
-        
+
         if not domain_file.exists():
             return None
-        
-        with open(domain_file, 'r') as f:
+
+        with open(domain_file, "r") as f:
             return json.load(f)
 
     def list_domains(self) -> List[Dict[str, Any]]:
@@ -198,22 +202,24 @@ class DomainBuilder:
             List of domain metadata
         """
         domains = []
-        
-        for domain_file in self.domains_dir.glob('*.json'):
+
+        for domain_file in self.domains_dir.glob("*.json"):
             try:
-                with open(domain_file, 'r') as f:
+                with open(domain_file, "r") as f:
                     config = json.load(f)
-                    domains.append({
-                        'id': domain_file.stem,
-                        'name': config.get('name', 'Unknown'),
-                        'description': config.get('description', ''),
-                        'concept_types': len(config.get('concept_types', [])),
-                        'created_at': config.get('created_at', ''),
-                        'updated_at': config.get('updated_at', ''),
-                    })
+                    domains.append(
+                        {
+                            "id": domain_file.stem,
+                            "name": config.get("name", "Unknown"),
+                            "description": config.get("description", ""),
+                            "concept_types": len(config.get("concept_types", [])),
+                            "created_at": config.get("created_at", ""),
+                            "updated_at": config.get("updated_at", ""),
+                        }
+                    )
             except Exception:
                 continue
-        
+
         return domains
 
     def delete_domain(self, domain_id: str) -> bool:
@@ -226,11 +232,11 @@ class DomainBuilder:
             True if deleted successfully
         """
         domain_file = self.domains_dir / f"{domain_id}.json"
-        
+
         if domain_file.exists():
             domain_file.unlink()
             return True
-        
+
         return False
 
     def create_custom_domain(self, config: Dict[str, Any]) -> CustomDomain:
@@ -253,9 +259,9 @@ class DomainBuilder:
         Returns:
             Domain ID
         """
-        import time
         import hashlib
-        
+        import time
+
         timestamp = str(int(time.time()))
         name_hash = hashlib.md5(name.encode()).hexdigest()[:8]
         return f"{name.lower().replace(' ', '_')}_{name_hash}_{timestamp}"
@@ -269,26 +275,26 @@ class DomainBuilder:
         Raises:
             ValueError: If configuration is invalid
         """
-        required_fields = ['name', 'concept_types']
-        
+        required_fields = ["name", "concept_types"]
+
         for field in required_fields:
             if field not in config:
                 raise ValueError(f"Missing required field: {field}")
-        
-        if not isinstance(config['concept_types'], list):
+
+        if not isinstance(config["concept_types"], list):
             raise ValueError("concept_types must be a list")
-        
-        if not config['concept_types']:
+
+        if not config["concept_types"]:
             raise ValueError("concept_types cannot be empty")
-        
+
         # Validate concept patterns
-        if 'concept_patterns' in config:
-            if not isinstance(config['concept_patterns'], dict):
+        if "concept_patterns" in config:
+            if not isinstance(config["concept_patterns"], dict):
                 raise ValueError("concept_patterns must be a dictionary")
-        
+
         # Validate relationship patterns
-        if 'relationship_patterns' in config:
-            if not isinstance(config['relationship_patterns'], list):
+        if "relationship_patterns" in config:
+            if not isinstance(config["relationship_patterns"], list):
                 raise ValueError("relationship_patterns must be a list")
 
 

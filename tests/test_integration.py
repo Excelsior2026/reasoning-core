@@ -1,9 +1,10 @@
 """Integration tests for full reasoning extraction pipeline."""
 
 import pytest
+
 from reasoning_core.api.reasoning_api import ReasoningAPI
-from reasoning_core.plugins.medical_domain import MedicalDomain
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 class TestIntegration:
@@ -12,13 +13,13 @@ class TestIntegration:
     def test_medical_diagnostic_workflow(self):
         """Test complete medical diagnostic reasoning extraction."""
         text = """
-        A 65-year-old male presents to the emergency department with acute onset 
+        A 65-year-old male presents to the emergency department with acute onset
         chest pain radiating to the left arm, accompanied by dyspnea and diaphoresis.
         Vital signs show tachycardia and hypertension.
         ECG reveals ST-segment elevation in leads II, III, and aVF.
         Troponin levels are significantly elevated at 5.2 ng/mL.
         Diagnosis: Acute inferior wall myocardial infarction.
-        Immediate treatment initiated with aspirin 325mg, clopidogrel, 
+        Immediate treatment initiated with aspirin 325mg, clopidogrel,
         unfractionated heparin, and prepared for emergent cardiac catheterization.
         """
 
@@ -39,12 +40,12 @@ class TestIntegration:
     def test_business_sales_workflow(self):
         """Test complete business sales reasoning extraction."""
         text = """
-        The prospect's primary pain point is inefficiency in their current 
+        The prospect's primary pain point is inefficiency in their current
         lead qualification process, resulting in a low conversion rate of 12%.
-        Our solution addresses this through automated lead scoring using 
+        Our solution addresses this through automated lead scoring using
         the MEDDIC framework, improving their sales team's productivity.
-        Expected outcomes include a 40% increase in conversion rate and 
-        improved ROI on marketing spend. We'll track success through 
+        Expected outcomes include a 40% increase in conversion rate and
+        improved ROI on marketing spend. We'll track success through
         metrics including CAC, LTV, and pipeline velocity.
         """
 

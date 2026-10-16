@@ -1,12 +1,12 @@
 """Medical domain plugin for clinical reasoning extraction."""
 
-from typing import List, Dict
-from reasoning_core.plugins.base_domain import BaseDomain
-from reasoning_core.extractors.concept_extractor import Concept
-from reasoning_core.extractors.relationship_mapper import Relationship
-from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
-from typing import Optional
 import re
+from typing import Dict, List, Optional
+
+from reasoning_core.extractors.concept_extractor import Concept
+from reasoning_core.extractors.reasoning_chain_builder import ReasoningChain, ReasoningStep
+from reasoning_core.extractors.relationship_mapper import Relationship
+from reasoning_core.plugins.base_domain import BaseDomain
 
 
 class MedicalDomain(BaseDomain):
@@ -147,7 +147,9 @@ class MedicalDomain(BaseDomain):
         end = max(source.position + len(source.text), target.position + len(target.text))
         return text[max(0, start - 20) : min(len(text), end + 20)]
 
-    def build_reasoning_chains(self, concepts: List[Concept], relationships: List[Relationship]) -> List[ReasoningChain]:
+    def build_reasoning_chains(
+        self, concepts: List[Concept], relationships: List[Relationship]
+    ) -> List[ReasoningChain]:
         """Build clinical reasoning chains."""
         chains = []
 
@@ -163,9 +165,7 @@ class MedicalDomain(BaseDomain):
 
         return chains
 
-    def _build_diagnostic_chain(
-        self, concepts: List[Concept], relationships: List[Relationship]
-    ) -> ReasoningChain:
+    def _build_diagnostic_chain(self, concepts: List[Concept], relationships: List[Relationship]) -> ReasoningChain:
         """Build a diagnostic reasoning chain."""
         steps = []
 
@@ -177,27 +177,17 @@ class MedicalDomain(BaseDomain):
         # Find test
         tests = [c for c in concepts if c.type == "tests"]
         if tests:
-            steps.append(
-                ReasoningStep(
-                    concept=tests[0], action="investigate", rationale="Order diagnostic workup"
-                )
-            )
+            steps.append(ReasoningStep(concept=tests[0], action="investigate", rationale="Order diagnostic workup"))
 
         # Find diagnosis
         diseases = [c for c in concepts if c.type == "diseases"]
         if diseases:
-            steps.append(
-                ReasoningStep(concept=diseases[0], action="diagnose", rationale="Based on clinical findings")
-            )
+            steps.append(ReasoningStep(concept=diseases[0], action="diagnose", rationale="Based on clinical findings"))
 
         # Find treatment
         treatments = [c for c in concepts if c.type == "treatments"]
         if treatments:
-            steps.append(
-                ReasoningStep(
-                    concept=treatments[0], action="treat", rationale="Evidence-based management"
-                )
-            )
+            steps.append(ReasoningStep(concept=treatments[0], action="treat", rationale="Evidence-based management"))
 
         if len(steps) >= 2:
             return ReasoningChain(type="diagnostic", steps=steps, confidence=0.8, domain="medical")
@@ -212,27 +202,19 @@ class MedicalDomain(BaseDomain):
         # Find diagnosis
         diseases = [c for c in concepts if c.type == "diseases"]
         if diseases:
-            steps.append(
-                ReasoningStep(concept=diseases[0], action="diagnose", rationale="Clinical diagnosis")
-            )
+            steps.append(ReasoningStep(concept=diseases[0], action="diagnose", rationale="Clinical diagnosis"))
 
         # Find treatment
         treatments = [c for c in concepts if c.type == "treatments"]
         if treatments:
             steps.append(
-                ReasoningStep(
-                    concept=treatments[0], action="treat", rationale="Evidence-based treatment plan"
-                )
+                ReasoningStep(concept=treatments[0], action="treat", rationale="Evidence-based treatment plan")
             )
 
         # Find monitoring/test
         tests = [c for c in concepts if c.type == "tests"]
         if tests:
-            steps.append(
-                ReasoningStep(
-                    concept=tests[0], action="monitor", rationale="Monitor treatment response"
-                )
-            )
+            steps.append(ReasoningStep(concept=tests[0], action="monitor", rationale="Monitor treatment response"))
 
         if len(steps) >= 2:
             return ReasoningChain(type="therapeutic", steps=steps, confidence=0.75, domain="medical")

@@ -1,13 +1,13 @@
 """Extract domain-specific concepts from text."""
 
-from typing import List, Dict, Optional, TYPE_CHECKING
-import re
 import logging
+import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from reasoning_core.plugins.base_domain import BaseDomain
     from reasoning_core.llm.base import LLMService
+    from reasoning_core.plugins.base_domain import BaseDomain
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ConceptExtractor:
         self.llm_service = llm_service
         self.use_llm = use_llm and llm_service is not None
 
-    def extract(self, text: str, domain_hints: Optional[Dict] = None) -> List[Concept]:
+    def extract(self, text: str, domain_hints: Optional[Dict] = None) -> List[Concept]:  # noqa: C901
         """Extract concepts from text.
 
         Args:
@@ -83,11 +83,11 @@ class ConceptExtractor:
             try:
                 domain_name = self.domain.get_name() if self.domain else "generic"
                 llm_concepts = self.llm_service.extract_concepts(text, domain_name, concepts)
-                
+
                 if llm_concepts:
                     # Merge and deduplicate concepts
                     concepts = self._merge_concepts(concepts, llm_concepts)
-                    
+
             except Exception as e:
                 logger.warning(f"LLM enhancement failed: {e}, using pattern-based results only")
 
@@ -150,39 +150,32 @@ class ConceptExtractor:
         Returns:
             Merged list of unique concepts
         """
-        # Create a set of existing concept keys (text, type, position)
-        existing_keys = {
-            (c.text.lower(), c.type, c.position)
-            for c in pattern_concepts
-        }
-        
         merged = list(pattern_concepts)
-        
+
         # Add LLM concepts that aren't duplicates
         for llm_concept in llm_concepts:
-            key = (llm_concept.text.lower(), llm_concept.type, llm_concept.position)
-            
             # Check for near-duplicates (similar text)
             is_duplicate = False
             for existing in merged:
-                if (llm_concept.text.lower() == existing.text.lower() and 
-                    llm_concept.type == existing.type):
+                if llm_concept.text.lower() == existing.text.lower() and llm_concept.type == existing.type:
                     # Update confidence if LLM is higher
                     if llm_concept.confidence > existing.confidence:
                         existing.confidence = llm_concept.confidence
                         existing.context = llm_concept.context
                     is_duplicate = True
                     break
-                
+
                 # Fuzzy match for similar concepts
-                if (llm_concept.text.lower() in existing.text.lower() or 
-                    existing.text.lower() in llm_concept.text.lower()):
+                if (
+                    llm_concept.text.lower() in existing.text.lower()
+                    or existing.text.lower() in llm_concept.text.lower()
+                ):
                     is_duplicate = True
                     break
-            
+
             if not is_duplicate:
                 merged.append(llm_concept)
-        
+
         return merged
 
     def extract_with_llm(self, text: str, llm_service: Optional["LLMService"] = None) -> List[Concept]:

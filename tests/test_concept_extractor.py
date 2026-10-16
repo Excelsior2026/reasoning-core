@@ -1,9 +1,10 @@
 """Tests for concept extraction."""
 
 import pytest
-from reasoning_core.extractors.concept_extractor import ConceptExtractor, Concept
-from reasoning_core.plugins.medical_domain import MedicalDomain
+
+from reasoning_core.extractors.concept_extractor import Concept, ConceptExtractor
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 class TestConceptExtractor:
