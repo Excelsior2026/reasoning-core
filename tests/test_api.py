@@ -1,9 +1,10 @@
 """Tests for the high-level reasoning API."""
 
 import pytest
+
 from reasoning_core.api.reasoning_api import ReasoningAPI
-from reasoning_core.plugins.medical_domain import MedicalDomain
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 class TestReasoningAPI:
@@ -88,9 +89,12 @@ class TestReasoningAPI:
         assert "questions" not in result or len(result["questions"]) == 0
 
     def test_empty_text(self):
-        """Test processing empty text."""
-        api = ReasoningAPI(domain=MedicalDomain())
-        result = api.process_text("")
+        """Test processing empty text.
 
-        assert "concepts" in result
-        assert len(result["concepts"]) == 0
+        Empty input is rejected with ValueError so callers cannot mistake an
+        empty result for a successful analysis.
+        """
+        api = ReasoningAPI(domain=MedicalDomain())
+
+        with pytest.raises(ValueError):
+            api.process_text("")

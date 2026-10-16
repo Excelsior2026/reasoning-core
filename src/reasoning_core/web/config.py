@@ -1,8 +1,8 @@
 """Configuration for reasoning-core web server."""
 
 import os
-from typing import List
 from pathlib import Path
+from typing import List
 
 # File upload settings
 MAX_FILE_SIZE_MB = int(os.getenv("REASONING_CORE_MAX_FILE_SIZE_MB", "50"))
@@ -34,9 +34,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("REASONING_CORE_JWT_EXPIRE_HOURS", "24"))
 
 # CORS settings
-CORS_ALLOW_ORIGINS = os.getenv(
-    "REASONING_CORE_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
-).split(",")
+CORS_ALLOW_ORIGINS = os.getenv("REASONING_CORE_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = ["GET", "POST"]
 CORS_ALLOW_HEADERS = ["Content-Type", "Authorization", "X-API-Key"]
@@ -56,9 +54,15 @@ LOG_LEVEL = os.getenv("REASONING_CORE_LOG_LEVEL", "INFO")
 LOG_FILE = os.getenv("REASONING_CORE_LOG_FILE", "")
 
 # File storage
-UPLOAD_DIR = Path(os.getenv("REASONING_CORE_UPLOAD_DIR", ""))
-if not UPLOAD_DIR:
+# NOTE: `Path("")` is `Path(".")`, and a Path object is always truthy, so a
+# `if not UPLOAD_DIR` fallback never runs and UPLOAD_DIR silently becomes the
+# current working directory. Check the environment string instead.
+_upload_dir_env = os.getenv("REASONING_CORE_UPLOAD_DIR", "").strip()
+if _upload_dir_env:
+    UPLOAD_DIR = Path(_upload_dir_env)
+else:
     import tempfile
+
     UPLOAD_DIR = Path(tempfile.gettempdir()) / "reasoning_core_uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

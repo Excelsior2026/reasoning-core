@@ -1,8 +1,10 @@
 """Tests for knowledge graph operations."""
 
-import pytest
 import json
-from reasoning_core.graph.knowledge_graph import KnowledgeGraph, Node, Edge
+
+import pytest
+
+from reasoning_core.graph.knowledge_graph import Edge, KnowledgeGraph, Node
 
 
 class TestKnowledgeGraph:
@@ -114,13 +116,26 @@ class TestKnowledgeGraph:
     def test_deserialization(self):
         """Test creating graph from dictionary."""
         data = {
-            "nodes": [{"id": "node1", "type": "concept", "label": "Node 1", "properties": {}, "confidence": 1.0}],
-            "edges": [{"source_id": "node1", "target_id": "node2", "type": "relates_to", "properties": {}, "confidence": 1.0}],
+            "nodes": [
+                {"id": "node1", "type": "concept", "label": "Node 1", "properties": {}, "confidence": 1.0},
+                {"id": "node2", "type": "concept", "label": "Node 2", "properties": {}, "confidence": 1.0},
+            ],
+            "edges": [
+                {
+                    "source_id": "node1",
+                    "target_id": "node2",
+                    "type": "relates_to",
+                    "properties": {},
+                    "confidence": 1.0,
+                }
+            ],
         }
 
         graph = KnowledgeGraph.from_dict(data)
-        assert len(graph.nodes) == 1
+        assert len(graph.nodes) == 2
         assert graph.get_node("node1") is not None
+        assert graph.get_node("node2") is not None
+        assert len(graph.edges) == 1
 
     def test_merge_graphs(self):
         """Test merging two graphs."""

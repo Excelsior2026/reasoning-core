@@ -1,17 +1,14 @@
 """Input validation for reasoning-core web API."""
 
-import re
 import os
+import re
 from pathlib import Path
-from typing import Optional, List
+from typing import Dict, List, Optional
+
 from fastapi import HTTPException, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
-from reasoning_core.web.config import (
-    MAX_TEXT_LENGTH,
-    MAX_FILE_SIZE_BYTES,
-    ALLOWED_FILE_EXTENSIONS,
-    ALLOWED_MIME_TYPES,
-)
+
+from reasoning_core.web.config import ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_TEXT_LENGTH
 
 
 class AnalysisRequest(BaseModel):
@@ -37,9 +34,7 @@ class AnalysisRequest(BaseModel):
         # Check byte length (UTF-8 encoding)
         byte_length = len(v.encode("utf-8"))
         if byte_length > MAX_TEXT_LENGTH:
-            raise ValueError(
-                f"Text too large: {byte_length} bytes (max: {MAX_TEXT_LENGTH} bytes)"
-            )
+            raise ValueError(f"Text too large: {byte_length} bytes (max: {MAX_TEXT_LENGTH} bytes)")
 
         return v.strip()
 
@@ -57,25 +52,6 @@ class URLRequest(BaseModel):
     """Request model for URL analysis with validation."""
 
     url: str = Field(..., description="Website URL to analyze")
-    domain: str = Field(
-        default="generic",
-        description="Domain type: medical, business, meeting, generic",
-    )
-    use_llm: Optional[bool] = Field(
-        default=None,
-        description="Whether to use LLM enhancement (defaults to config setting)",
-    )
-
-
-class BatchAnalysisRequest(BaseModel):
-    """Request model for batch analysis."""
-
-    items: List[Dict] = Field(
-        ...,
-        description="List of items to analyze. Each item should have 'text', 'url', or 'file' field",
-        min_length=1,
-        max_length=50,  # Limit batch size
-    )
     domain: str = Field(
         default="generic",
         description="Domain type: medical, business, meeting, generic",
@@ -108,6 +84,25 @@ class BatchAnalysisRequest(BaseModel):
 
         return v.strip()
 
+
+class BatchAnalysisRequest(BaseModel):
+    """Request model for batch analysis."""
+
+    items: List[Dict] = Field(
+        ...,
+        description="List of items to analyze. Each item should have 'text', 'url', or 'file' field",
+        min_length=1,
+        max_length=50,  # Limit batch size
+    )
+    domain: str = Field(
+        default="generic",
+        description="Domain type: medical, business, meeting, generic",
+    )
+    use_llm: Optional[bool] = Field(
+        default=None,
+        description="Whether to use LLM enhancement (defaults to config setting)",
+    )
+
     @field_validator("domain")
     @classmethod
     def validate_domain(cls, v):
@@ -131,18 +126,16 @@ def sanitize_filename(filename: Optional[str]) -> str:
         HTTPException: If filename is invalid
     """
     if not filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
     # Remove path components
     filename = os.path.basename(filename)
 
     # Remove or replace dangerous characters
-    filename = re.sub(r'[^\w\s.-]', '', filename)
+    filename = re.sub(r"[^\w\s.-]", "", filename)
 
     # Remove leading/trailing dots and spaces
-    filename = filename.strip('. ')
+    filename = filename.strip(". ")
 
     # Limit length
     if len(filename) > 255:
@@ -151,9 +144,7 @@ def sanitize_filename(filename: Optional[str]) -> str:
 
     # Ensure filename is not empty
     if not filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename")
 
     return filename
 
@@ -171,9 +162,7 @@ def validate_file_upload(file: UploadFile) -> tuple[str, str]:
         HTTPException: If file is invalid
     """
     if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required")
 
     # Sanitize filename
     filename = sanitize_filename(file.filename)

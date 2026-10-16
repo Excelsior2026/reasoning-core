@@ -1,87 +1,63 @@
 """FastAPI web server for reasoning-core."""
 
+import asyncio
+import atexit
+import json
+import logging
 import os
 import time
 import uuid
-import logging
-import atexit
-import asyncio
-from typing import Optional, Dict, Any
-from pathlib import Path
 from collections import OrderedDict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import aiofiles
-
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends, Request
-from fastapi import status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.middleware.base import BaseHTTPMiddleware
-import json
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from reasoning_core import ReasoningAPI, MedicalDomain, BusinessDomain, MeetingDomain
+from reasoning_core import BusinessDomain, MedicalDomain, MeetingDomain, ReasoningAPI
+from reasoning_core.web.auth import AuthenticationError, optional_auth
+from reasoning_core.web.cache import cache_text_analysis, cleanup_caches, get_cache_stats, get_cached_text_analysis
 from reasoning_core.web.config import (
+    CORS_ALLOW_CREDENTIALS,
+    CORS_ALLOW_HEADERS,
+    CORS_ALLOW_METHODS,
+    CORS_ALLOW_ORIGINS,
+    FILE_CLEANUP_INTERVAL_SECONDS,
+    FILE_MAX_AGE_SECONDS,
     LLM_ENABLED,
-    UPLOAD_DIR,
-    CORS_ALLOW_ORIGINS,
-    CORS_ALLOW_CREDENTIALS,
-    CORS_ALLOW_METHODS,
-    CORS_ALLOW_HEADERS,
-    TASK_EXPIRY_SECONDS,
-    FILE_CLEANUP_INTERVAL_SECONDS,
-    FILE_MAX_AGE_SECONDS,
-    LOG_LEVEL,
     LOG_FILE,
-)
-from reasoning_core.web.parsers import parse_document, DocumentParserError
-from reasoning_core.web.scraper import scrape_website, ScrapingError
-from reasoning_core.web.config import (
-    UPLOAD_DIR,
-    CORS_ALLOW_ORIGINS,
-    CORS_ALLOW_CREDENTIALS,
-    CORS_ALLOW_METHODS,
-    CORS_ALLOW_HEADERS,
-    TASK_EXPIRY_SECONDS,
-    FILE_CLEANUP_INTERVAL_SECONDS,
-    FILE_MAX_AGE_SECONDS,
     LOG_LEVEL,
-    LOG_FILE,
-)
-from reasoning_core.web.auth import authenticate, optional_auth, AuthenticationError
-from reasoning_core.web.rate_limit import rate_limit_middleware, cleanup_rate_limits
-from reasoning_core.web.validation import (
-    AnalysisRequest,
-    URLRequest,
-    BatchAnalysisRequest,
-    validate_file_upload,
-    validate_file_size,
-    sanitize_filename,
-)
-from reasoning_core.web.progress import (
-    create_progress_tracker,
-    get_progress_tracker,
-    remove_progress_tracker,
-)
-from reasoning_core.web.exports import export_markdown, export_pdf, export_html
-from reasoning_core.web.search import AdvancedSearch, Analytics
-from reasoning_core.web.cache import (
-    cache_text_analysis,
-    get_cached_text_analysis,
-    cleanup_caches,
-    get_cache_stats,
+    TASK_EXPIRY_SECONDS,
+    UPLOAD_DIR,
 )
 from reasoning_core.web.domain_builder import get_domain_builder
+from reasoning_core.web.exports import export_html, export_markdown, export_pdf
+from reasoning_core.web.parsers import DocumentParserError, parse_document
+from reasoning_core.web.progress import create_progress_tracker, get_progress_tracker, remove_progress_tracker
+from reasoning_core.web.rate_limit import cleanup_rate_limits, rate_limit_middleware
+from reasoning_core.web.scraper import ScrapingError, scrape_website
+from reasoning_core.web.search import AdvancedSearch, Analytics
+from reasoning_core.web.validation import (
+    AnalysisRequest,
+    BatchAnalysisRequest,
+    URLRequest,
+    sanitize_filename,
+    validate_file_size,
+    validate_file_upload,
+)
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_FILE) if LOG_FILE else logging.StreamHandler()
-    ],
+    handlers=[logging.FileHandler(LOG_FILE) if LOG_FILE else logging.StreamHandler()],
 )
 logger = logging.getLogger("reasoning_core.web")
+
 
 # Pydantic models
 class AnalysisResponse(BaseModel):
@@ -146,13 +122,44 @@ def cleanup_expired_tasks():
         logger.debug(f"Cleaned up expired task: {task_id}")
 
 
+def _upload_dir_is_safe_to_clean(upload_dir: Path) -> bool:
+    """Return True when age-based cleanup is safe for this directory.
+
+    Cleanup deletes files by age, so it must never target the process working
+    directory or a repository working tree.
+    """
+    resolved = Path(upload_dir).resolve()
+    if resolved == Path.cwd().resolve():
+        logger.warning(
+            "Skipping file cleanup: upload directory is the working directory: %s",
+            resolved,
+        )
+        return False
+    if (resolved / ".git").exists():
+        logger.warning(
+            "Skipping file cleanup: upload directory looks like a repository working tree: %s",
+            resolved,
+        )
+        return False
+    return True
+
+
 def cleanup_old_files():
-    """Remove old files from upload directory."""
+    """Remove old files from the upload directory.
+
+    Refuses to run when the upload directory is the process working directory
+    or looks like a repository working tree: the exit/periodic cleanup deletes
+    files by age, and with the old "." default it deleted top-level files in
+    whatever directory the process happened to run from.
+    """
     current_time = time.time()
     removed_count = 0
 
     try:
-        for file_path in UPLOAD_DIR.glob("*"):
+        if not _upload_dir_is_safe_to_clean(UPLOAD_DIR):
+            return
+
+        for file_path in Path(UPLOAD_DIR).resolve().glob("*"):
             if file_path.is_file():
                 file_age = current_time - file_path.stat().st_mtime
                 if file_age > FILE_MAX_AGE_SECONDS:
@@ -179,7 +186,7 @@ async def periodic_cleanup():
         cleanup_rate_limits()
 
 
-# Start cleanup task on startup
+# Start cleanup tasks on startup
 @app.on_event("startup")
 async def startup_event():
     """Startup tasks."""
@@ -187,6 +194,7 @@ async def startup_event():
     logger.info(f"Upload directory: {UPLOAD_DIR}")
     logger.info(f"CORS allowed origins: {CORS_ALLOW_ORIGINS}")
     asyncio.create_task(periodic_cleanup())
+    asyncio.create_task(periodic_cache_cleanup())
 
 
 # Register cleanup on shutdown
@@ -209,13 +217,13 @@ def get_domain(domain_name: str, custom_domain_id: Optional[str] = None):
         Domain instance or None if invalid
     """
     # Check for custom domain first
-    if domain_name.lower() == 'custom' and custom_domain_id:
+    if domain_name.lower() == "custom" and custom_domain_id:
         builder = get_domain_builder()
         config = builder.load_domain(custom_domain_id)
         if config:
             return builder.create_custom_domain(config)
         return None
-    
+
     domain_map = {
         "medical": MedicalDomain,
         "business": BusinessDomain,
@@ -266,10 +274,10 @@ async def get_cache_statistics(auth: Optional[Dict] = Depends(optional_auth)):
         Cache statistics
     """
     stats = get_cache_stats()
-    
+
     # Cleanup expired entries
     cleanup_stats = cleanup_caches()
-    
+
     return {
         "cache_statistics": stats,
         "cleanup": cleanup_stats,
@@ -280,25 +288,17 @@ async def get_cache_statistics(auth: Optional[Dict] = Depends(optional_auth)):
 async def clear_cache_endpoint(auth: Optional[Dict] = Depends(optional_auth)):
     """Clear all caches."""
     from reasoning_core.web.cache import clear_cache
+
     clear_cache()
     return {"message": "Cache cleared successfully"}
 
 
-# Schedule periodic cache cleanup
-import asyncio
-
+# Periodic cache cleanup task (started by startup_event above)
 async def periodic_cache_cleanup():
     """Periodically cleanup expired cache entries."""
     while True:
         await asyncio.sleep(3600)  # Every hour
         cleanup_caches()
-
-
-# Start background task for cache cleanup
-@app.on_event("startup")
-async def startup_event():
-    """Start background tasks on startup."""
-    asyncio.create_task(periodic_cache_cleanup())
 
 
 @app.get("/api/domains")
@@ -327,20 +327,20 @@ async def create_domain(
         Created domain metadata
     """
     import time
-    
+
     builder = get_domain_builder()
-    
+
     # Add timestamps
-    if 'id' in config and builder.load_domain(config['id']):
+    if "id" in config and builder.load_domain(config["id"]):
         # Update existing
-        config['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
+        config["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
     else:
         # Create new
-        config['created_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
-        config['updated_at'] = time.strftime('%Y-%m-%d %H:%M:%S')
-    
+        config["created_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        config["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
     domain_id = builder.save_domain(config)
-    
+
     return {
         "id": domain_id,
         "message": "Domain saved successfully",
@@ -349,7 +349,7 @@ async def create_domain(
 
 
 @app.get("/api/domains/{domain_id}")
-async def get_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+async def get_domain_config(domain_id: str, auth: Optional[Dict] = Depends(optional_auth)):
     """Get custom domain configuration.
 
     Args:
@@ -360,10 +360,10 @@ async def get_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_aut
     """
     builder = get_domain_builder()
     config = builder.load_domain(domain_id)
-    
+
     if not config:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
-    
+
     return {"domain": config}
 
 
@@ -379,10 +379,10 @@ async def delete_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_
     """
     builder = get_domain_builder()
     deleted = builder.delete_domain(domain_id)
-    
+
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
-    
+
     return {"message": "Domain deleted successfully"}
 
 
@@ -403,15 +403,15 @@ async def test_domain(
     """
     builder = get_domain_builder()
     config = builder.load_domain(domain_id)
-    
+
     if not config:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
-    
+
     # Create domain instance and test
     try:
         custom_domain = builder.create_custom_domain(config)
         api = ReasoningAPI(domain=custom_domain, use_llm=False)
-        
+
         result = api.process_text(test_text, include_graph=True, use_llm=False)
     except Exception as e:
         logger.exception(f"Error testing domain: {e}")
@@ -419,7 +419,7 @@ async def test_domain(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to test domain: {str(e)}",
         )
-    
+
     return {
         "domain_id": domain_id,
         "test_text": test_text,
@@ -437,33 +437,35 @@ async def stream_progress(task_id: str):
     Returns:
         SSE stream of progress updates
     """
+
     async def event_generator():
         """Generate SSE events."""
         tracker = get_progress_tracker(task_id)
         last_progress = -1
-        
+
         # Send initial progress if available
         if tracker:
             update = tracker.to_dict()
             yield f"data: {json.dumps(update)}\n\n"
             last_progress = tracker.progress
-        
+
         # Poll for updates
         import asyncio
+
         max_attempts = 600  # 10 minutes at 1 second intervals
         attempts = 0
-        
+
         while attempts < max_attempts:
             await asyncio.sleep(1)  # Check every second
             attempts += 1
-            
+
             tracker = get_progress_tracker(task_id)
             if tracker:
                 if tracker.progress != last_progress:
                     update = tracker.to_dict()
                     yield f"data: {json.dumps(update)}\n\n"
                     last_progress = tracker.progress
-                    
+
                     # Stop streaming when complete
                     if tracker.progress >= 100 or tracker.stage in ("completed", "error"):
                         yield f"data: {json.dumps({**tracker.to_dict(), 'done': True})}\n\n"
@@ -479,22 +481,22 @@ async def stream_progress(task_id: str):
                     # Task not found
                     yield f"data: {json.dumps({'task_id': task_id, 'error': 'Task not found', 'done': True})}\n\n"
                     break
-        
+
         # Cleanup
         remove_progress_tracker(task_id)
-    
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.post("/api/analyze/text", response_model=AnalysisResponse)
-async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(optional_auth)):
+async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(optional_auth)):  # noqa: C901
     """Analyze text directly."""
     logger.info(f"Text analysis request: domain={request.domain}, length={len(request.text)}")
 
     try:
         # Get LLM preference from request or use default
         use_llm = request.use_llm if request.use_llm is not None else LLM_ENABLED
-        
+
         # Check cache first
         cached_result = get_cached_text_analysis(request.text, request.domain, use_llm)
         if cached_result:
@@ -511,11 +513,11 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
                 status="completed",
                 message="Analysis completed (cached)",
             )
-        
+
         # Create task ID for progress tracking
         task_id = str(uuid.uuid4())
         tracker = create_progress_tracker(task_id)
-        
+
         # Get domain
         domain = get_domain(request.domain)
         api = ReasoningAPI(domain=domain, use_llm=use_llm)
@@ -523,33 +525,34 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
         # Process text with progress updates
         def update_progress(stage: str, progress: int, message: str = ""):
             tracker.update(stage, progress, message)
-        
+
         # Process with progress callbacks
         update_progress("extracting_concepts", 10, "Extracting concepts...")
         concepts = api.concept_extractor.extract(request.text)
-        
+
         update_progress("mapping_relationships", 40, "Mapping relationships...")
         relationships = api.relationship_mapper.map_relationships(concepts, request.text)
-        
+
         update_progress("building_chains", 60, "Building reasoning chains...")
         chains = api.chain_builder.build_chains(concepts, relationships)
-        
+
         update_progress("building_graph", 80, "Building knowledge graph...")
         from dataclasses import asdict
+
         result = {
             "concepts": [asdict(c) for c in concepts],
             "relationships": [asdict(r) for r in relationships],
             "reasoning_chains": [asdict(c) for c in chains],
             "llm_enhanced": use_llm,
         }
-        
+
         try:
             graph = api._build_knowledge_graph(concepts, relationships)
             result["knowledge_graph"] = graph.to_dict()
         except Exception as e:
             result["knowledge_graph"] = None
             result["graph_error"] = str(e)
-        
+
         # Generate questions
         if api.domain:
             try:
@@ -558,7 +561,7 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
                 result["questions"] = questions
             except Exception:
                 result["questions"] = []
-        
+
         update_progress("completed", 100, "Analysis complete")
 
         # Store result with expiration
@@ -595,10 +598,11 @@ async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(
 
 
 @app.post("/api/analyze/file")
-async def analyze_file(
+async def analyze_file(  # noqa: C901
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     domain: str = Form(default="generic"),
+    use_llm: Optional[bool] = Form(default=None),
     auth: Optional[Dict] = Depends(optional_auth),
 ):
     """Analyze uploaded document file."""
@@ -654,7 +658,7 @@ async def analyze_file(
         # Create progress tracker
         tracker = create_progress_tracker(task_id)
         tracker.update("uploaded", 5, "File uploaded, starting analysis...")
-        
+
         # Process in background
         use_llm_final = use_llm if use_llm is not None else LLM_ENABLED
         background_tasks.add_task(process_file_task, task_id, str(file_path), domain, use_llm_final)
@@ -687,10 +691,10 @@ async def analyze_file(
         )
 
 
-def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool = False):
+def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool = False):  # noqa: C901
     """Process file in background."""
     logger.info(f"Processing file task: task_id={task_id}, file={file_path}, use_llm={use_llm}")
-    
+
     tracker = get_progress_tracker(task_id)
     if tracker:
         tracker.update("parsing", 10, "Parsing document...")
@@ -712,36 +716,36 @@ def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool =
 
         # Process text with progress
         from dataclasses import asdict
-        
+
         if tracker:
             tracker.update("extracting_concepts", 25, "Extracting concepts...")
         concepts = api.concept_extractor.extract(text)
-        
+
         if tracker:
             tracker.update("mapping_relationships", 50, "Mapping relationships...")
         relationships = api.relationship_mapper.map_relationships(concepts, text)
-        
+
         if tracker:
             tracker.update("building_chains", 65, "Building reasoning chains...")
         chains = api.chain_builder.build_chains(concepts, relationships)
-        
+
         if tracker:
             tracker.update("building_graph", 80, "Building knowledge graph...")
-        
+
         result = {
             "concepts": [asdict(c) for c in concepts],
             "relationships": [asdict(r) for r in relationships],
             "reasoning_chains": [asdict(c) for c in chains],
             "llm_enhanced": use_llm,
         }
-        
+
         try:
             graph = api._build_knowledge_graph(concepts, relationships)
             result["knowledge_graph"] = graph.to_dict()
         except Exception as e:
             result["knowledge_graph"] = None
             result["graph_error"] = str(e)
-        
+
         if api.domain:
             try:
                 content_dict = api._prepare_content_for_questions(concepts)
@@ -749,7 +753,7 @@ def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool =
                 result["questions"] = questions
             except Exception:
                 result["questions"] = []
-        
+
         if tracker:
             tracker.update("completed", 100, "Analysis complete")
         result["source"] = {
@@ -768,7 +772,7 @@ def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool =
             }
 
         logger.info(f"File processing completed: task_id={task_id}")
-        
+
         # Cleanup tracker
         if tracker:
             remove_progress_tracker(task_id)
@@ -858,7 +862,7 @@ async def analyze_url(
     # Create progress tracker
     tracker = create_progress_tracker(task_id)
     tracker.update("initializing", 5, "Starting URL analysis...")
-    
+
     # Process in background
     background_tasks.add_task(process_url_task, task_id, request.url, request.domain, use_llm)
 
@@ -869,10 +873,10 @@ async def analyze_url(
     )
 
 
-def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False):
+def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False):  # noqa: C901
     """Process URL in background."""
     logger.info(f"Processing URL task: task_id={task_id}, url={url}, use_llm={use_llm}")
-    
+
     tracker = get_progress_tracker(task_id)
     if tracker:
         tracker.update("scraping", 15, "Scraping website content...")
@@ -894,36 +898,36 @@ def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False)
 
         # Process text with progress
         from dataclasses import asdict
-        
+
         if tracker:
             tracker.update("extracting_concepts", 35, "Extracting concepts...")
         concepts = api.concept_extractor.extract(text)
-        
+
         if tracker:
             tracker.update("mapping_relationships", 55, "Mapping relationships...")
         relationships = api.relationship_mapper.map_relationships(concepts, text)
-        
+
         if tracker:
             tracker.update("building_chains", 70, "Building reasoning chains...")
         chains = api.chain_builder.build_chains(concepts, relationships)
-        
+
         if tracker:
             tracker.update("building_graph", 85, "Building knowledge graph...")
-        
+
         result = {
             "concepts": [asdict(c) for c in concepts],
             "relationships": [asdict(r) for r in relationships],
             "reasoning_chains": [asdict(c) for c in chains],
             "llm_enhanced": use_llm,
         }
-        
+
         try:
             graph = api._build_knowledge_graph(concepts, relationships)
             result["knowledge_graph"] = graph.to_dict()
         except Exception as e:
             result["knowledge_graph"] = None
             result["graph_error"] = str(e)
-        
+
         if api.domain:
             try:
                 content_dict = api._prepare_content_for_questions(concepts)
@@ -931,7 +935,7 @@ def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False)
                 result["questions"] = questions
             except Exception:
                 result["questions"] = []
-        
+
         if tracker:
             tracker.update("completed", 100, "Analysis complete")
         result["source"] = {
@@ -950,7 +954,7 @@ def process_url_task(task_id: str, url: str, domain: str, use_llm: bool = False)
             }
 
         logger.info(f"URL processing completed: task_id={task_id}")
-        
+
         # Cleanup tracker
         if tracker:
             remove_progress_tracker(task_id)
@@ -996,9 +1000,7 @@ async def get_results(task_id: str, auth: Optional[Dict] = Depends(optional_auth
 
     if task_id not in tasks:
         logger.warning(f"Task not found: {task_id}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or expired"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or expired")
 
     task = tasks[task_id]
 
@@ -1114,6 +1116,7 @@ async def export_results_markdown(task_id: str, auth: Optional[Dict] = Depends(o
     markdown = export_markdown(result)
 
     from fastapi.responses import Response
+
     return Response(
         content=markdown,
         media_type="text/markdown",
@@ -1136,13 +1139,14 @@ async def export_results_pdf(task_id: str, auth: Optional[Dict] = Depends(option
     result = task.get("result", {})
     try:
         pdf_bytes = export_pdf(result)
-    except ImportError as e:
+    except ImportError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="PDF export requires reportlab. Install with: pip install reportlab",
         )
 
     from fastapi.responses import Response
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -1166,6 +1170,7 @@ async def export_results_html(task_id: str, auth: Optional[Dict] = Depends(optio
     html = export_html(result)
 
     from fastapi.responses import Response
+
     return Response(
         content=html,
         media_type="text/html",
@@ -1213,29 +1218,32 @@ async def analyze_batch(
     )
 
 
-def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: bool = False):
+def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: bool = False):  # noqa: C901
     """Process batch analysis."""
     logger.info(f"Processing batch task: batch_id={batch_id}, items={len(items)}")
-    
+
     tracker = get_progress_tracker(batch_id)
     domain_instance = get_domain(domain)
     api = ReasoningAPI(domain=domain_instance, use_llm=use_llm)
-    
+
     results = []
-    
+
     for i, item in enumerate(items):
         try:
             # Get text from item
             text = None
             source_info = {}
-            
+
             if item.get("text"):
                 text = item["text"]
                 source_info = {"type": "text", "index": i}
             elif item.get("url"):
                 if tracker:
-                    tracker.update("processing", int(10 + (i / len(items)) * 80), 
-                                 f"Processing item {i+1}/{len(items)}: {item['url']}")
+                    tracker.update(
+                        "processing",
+                        int(10 + (i / len(items)) * 80),
+                        f"Processing item {i+1}/{len(items)}: {item['url']}",
+                    )
                 scraped_data = scrape_website(item["url"])
                 text = scraped_data["text"]
                 source_info = {"type": "url", "url": item["url"], "index": i}
@@ -1244,21 +1252,20 @@ def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: b
                 # For now, skip if file not available
                 logger.warning(f"File item {i} skipped - file processing requires file path")
                 continue
-            
+
             if not text or not text.strip():
                 continue
-            
+
             # Process item
             if tracker:
-                tracker.update("processing", int(10 + (i / len(items)) * 80),
-                             f"Analyzing item {i+1}/{len(items)}...")
-            
+                tracker.update("processing", int(10 + (i / len(items)) * 80), f"Analyzing item {i+1}/{len(items)}...")
+
             from dataclasses import asdict
-            
+
             concepts = api.concept_extractor.extract(text)
             relationships = api.relationship_mapper.map_relationships(concepts, text)
             chains = api.chain_builder.build_chains(concepts, relationships)
-            
+
             result = {
                 "index": i,
                 "source": source_info,
@@ -1267,13 +1274,13 @@ def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: b
                 "reasoning_chains": [asdict(c) for c in chains],
                 "llm_enhanced": use_llm,
             }
-            
+
             try:
                 graph = api._build_knowledge_graph(concepts, relationships)
                 result["knowledge_graph"] = graph.to_dict()
             except Exception:
                 result["knowledge_graph"] = None
-            
+
             if api.domain:
                 try:
                     content_dict = api._prepare_content_for_questions(concepts)
@@ -1281,22 +1288,24 @@ def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: b
                     result["questions"] = questions
                 except Exception:
                     result["questions"] = []
-            
+
             results.append(result)
-            
+
             # Update batch progress
             if batch_id in tasks:
                 tasks[batch_id]["completed_items"] = len(results)
                 tasks[batch_id]["results"] = results
-            
+
         except Exception as e:
             logger.error(f"Error processing batch item {i}: {e}")
-            results.append({
-                "index": i,
-                "error": str(e),
-                "source": item,
-            })
-    
+            results.append(
+                {
+                    "index": i,
+                    "error": str(e),
+                    "source": item,
+                }
+            )
+
     # Update batch task
     if batch_id in tasks:
         tasks[batch_id] = {
@@ -1313,11 +1322,11 @@ def process_batch_task(batch_id: str, items: List[Dict], domain: str, use_llm: b
             "completed_items": len(results),
             "created_at": tasks[batch_id].get("created_at", time.time()),
         }
-    
+
     if tracker:
         tracker.update("completed", 100, f"Batch analysis complete: {len(results)} items processed")
         remove_progress_tracker(batch_id)
-    
+
     logger.info(f"Batch processing completed: batch_id={batch_id}, processed={len(results)}/{len(items)}")
 
 
