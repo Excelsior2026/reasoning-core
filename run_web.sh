@@ -18,9 +18,9 @@ fi
 $PYTHON_CMD -c "import fastapi" 2>/dev/null || {
     echo "❌ FastAPI not installed. Installing web dependencies..."
     if command -v pip3 &> /dev/null; then
-        pip3 install -r requirements-web.txt
+        pip3 install -e ".[web]"
     else
-        pip install -r requirements-web.txt
+        pip install -e ".[web]"
     fi
 }
 

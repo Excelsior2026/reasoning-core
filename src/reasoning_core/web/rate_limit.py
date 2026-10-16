@@ -1,14 +1,12 @@
 """Rate limiting for reasoning-core web API."""
 
 import time
-from typing import Dict, Optional
 from collections import defaultdict
-from fastapi import Request, HTTPException, status
-from reasoning_core.web.config import (
-    RATE_LIMIT_ENABLED,
-    RATE_LIMIT_REQUESTS,
-    RATE_LIMIT_WINDOW_SECONDS,
-)
+from typing import Dict
+
+from fastapi import HTTPException, Request, status
+
+from reasoning_core.web.config import RATE_LIMIT_ENABLED, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS
 
 # In-memory rate limit storage (use Redis in production)
 _rate_limit_store: Dict[str, list] = defaultdict(list)

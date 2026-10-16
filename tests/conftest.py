@@ -1,10 +1,11 @@
 """Shared test fixtures for reasoning-core tests."""
 
 import pytest
+
 from reasoning_core.extractors.concept_extractor import Concept
 from reasoning_core.extractors.relationship_mapper import Relationship
-from reasoning_core.plugins.medical_domain import MedicalDomain
 from reasoning_core.plugins.business_domain import BusinessDomain
+from reasoning_core.plugins.medical_domain import MedicalDomain
 
 
 @pytest.fixture
@@ -43,10 +44,12 @@ def sample_generic_text():
 def sample_concepts():
     """Sample concept objects for testing."""
     return [
-        Concept(text="chest pain", type="symptom", confidence=0.9, context="Patient presents with chest pain", position=20),
-        Concept(text="ECG", type="test", confidence=0.95, context="ECG shows ST elevation", position=60),
-        Concept(text="myocardial infarction", type="disease", confidence=0.9, context="Diagnosis: MI", position=100),
-        Concept(text="aspirin", type="treatment", confidence=0.85, context="Treatment: Aspirin", position=140),
+        Concept(
+            text="chest pain", type="symptoms", confidence=0.9, context="Patient presents with chest pain", position=20
+        ),
+        Concept(text="ECG", type="tests", confidence=0.95, context="ECG shows ST elevation", position=60),
+        Concept(text="myocardial infarction", type="diseases", confidence=0.9, context="Diagnosis: MI", position=100),
+        Concept(text="aspirin", type="treatments", confidence=0.85, context="Treatment: Aspirin", position=140),
     ]
 
 

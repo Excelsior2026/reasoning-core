@@ -23,7 +23,6 @@ WizardSmallImageFile=compiler:WizModernSmallImage-IS.bmp
 Source: "..\..\src\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "node_modules;dist;.vite"
 Source: "..\..\pyproject.toml"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\..\requirements-web.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\install.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\install-unified.sh"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\install-unified.bat"; DestDir: "{app}"; Flags: ignoreversion

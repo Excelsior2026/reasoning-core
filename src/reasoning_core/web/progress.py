@@ -1,9 +1,8 @@
 """Progress tracking for real-time updates."""
 
-import asyncio
 import logging
-from typing import Dict, Optional, Callable
 from datetime import datetime
+from typing import Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,11 @@
 """Export functionality for analysis results."""
 
 import io
-import json
-from typing import Dict, Any
 from datetime import datetime
+from typing import Any, Dict
 
 
-def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
+def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:  # noqa: C901
     """Export analysis results as Markdown.
 
     Args:
@@ -17,17 +16,17 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
         Markdown string
     """
     md = []
-    
+
     # Header
     md.append("# Reasoning Core Analysis Report")
     md.append(f"\n*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n")
-    
+
     # Summary
     concepts = result.get("concepts", [])
     relationships = result.get("relationships", [])
     chains = result.get("reasoning_chains", [])
     questions = result.get("questions", [])
-    
+
     md.append("## Summary")
     md.append(f"- **Concepts**: {len(concepts)}")
     md.append(f"- **Relationships**: {len(relationships)}")
@@ -36,7 +35,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
     if result.get("llm_enhanced"):
         md.append("- **LLM Enhanced**: Yes")
     md.append("")
-    
+
     # Concepts
     if concepts:
         md.append("## Concepts")
@@ -47,7 +46,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
             if ctype not in concept_types:
                 concept_types[ctype] = []
             concept_types[ctype].append(concept)
-        
+
         for ctype, type_concepts in sorted(concept_types.items()):
             md.append(f"### {ctype.title()}")
             for concept in type_concepts[:20]:  # Limit to first 20 per type
@@ -56,7 +55,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
             if len(type_concepts) > 20:
                 md.append(f"- *... and {len(type_concepts) - 20} more*")
             md.append("")
-    
+
     # Relationships
     if relationships:
         md.append("## Relationships")
@@ -71,7 +70,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
         if len(relationships) > 50:
             md.append(f"- *... and {len(relationships) - 50} more*")
         md.append("")
-    
+
     # Reasoning Chains
     if chains:
         md.append("## Reasoning Chains")
@@ -91,7 +90,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
             if len(steps) > 5:
                 md.append(f"   *... and {len(steps) - 5} more steps*")
             md.append("")
-    
+
     # Questions
     if questions:
         md.append("## Generated Questions")
@@ -99,7 +98,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
         for q in questions:
             md.append(f"- {q}")
         md.append("")
-    
+
     # Knowledge Graph
     if include_graph and result.get("knowledge_graph"):
         graph = result["knowledge_graph"]
@@ -112,7 +111,7 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
             md.append("")
             md.append("*Graph visualization available in web interface.*")
             md.append("")
-    
+
     # Source information
     source = result.get("source")
     if source:
@@ -123,11 +122,11 @@ def export_markdown(result: Dict[str, Any], include_graph: bool = True) -> str:
         if source.get("url"):
             md.append(f"- **URL**: {source['url']}")
         md.append("")
-    
+
     return "\n".join(md)
 
 
-def export_pdf(result: Dict[str, Any]) -> bytes:
+def export_pdf(result: Dict[str, Any]) -> bytes:  # noqa: C901
     """Export analysis results as PDF.
 
     Args:
@@ -140,44 +139,42 @@ def export_pdf(result: Dict[str, Any]) -> bytes:
         Requires reportlab: pip install reportlab
     """
     try:
-        from reportlab.lib.pagesizes import letter, A4
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
         from reportlab.lib import colors
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     except ImportError:
         raise ImportError("reportlab is required for PDF export. Install with: pip install reportlab")
-    
+
     # Create PDF buffer
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
-    
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5 * inch, bottomMargin=0.5 * inch)
+
     # Styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
+        "CustomTitle",
+        parent=styles["Heading1"],
         fontSize=24,
-        textColor=colors.HexColor('#1e40af'),
+        textColor=colors.HexColor("#1e40af"),
         spaceAfter=30,
     )
-    
+
     # Story (content)
     story = []
-    
+
     # Title
     story.append(Paragraph("Reasoning Core Analysis Report", title_style))
-    story.append(Paragraph(f"<i>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>", styles['Normal']))
-    story.append(Spacer(1, 0.3*inch))
-    
+    story.append(Paragraph(f"<i>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>", styles["Normal"]))
+    story.append(Spacer(1, 0.3 * inch))
+
     # Summary
     concepts = result.get("concepts", [])
     relationships = result.get("relationships", [])
     chains = result.get("reasoning_chains", [])
     questions = result.get("questions", [])
-    
+
     summary_data = [
         ["Metric", "Count"],
         ["Concepts", str(len(concepts))],
@@ -187,28 +184,32 @@ def export_pdf(result: Dict[str, Any]) -> bytes:
     ]
     if result.get("llm_enhanced"):
         summary_data.append(["LLM Enhanced", "Yes"])
-    
-    summary_table = Table(summary_data, colWidths=[2*inch, 1*inch])
-    summary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-    ]))
-    
-    story.append(Paragraph("<b>Summary</b>", styles['Heading2']))
+
+    summary_table = Table(summary_data, colWidths=[2 * inch, 1 * inch])
+    summary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b82f6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+            ]
+        )
+    )
+
+    story.append(Paragraph("<b>Summary</b>", styles["Heading2"]))
     story.append(summary_table)
-    story.append(Spacer(1, 0.2*inch))
-    
+    story.append(Spacer(1, 0.2 * inch))
+
     # Concepts
     if concepts:
-        story.append(Paragraph("<b>Concepts</b>", styles['Heading2']))
+        story.append(Paragraph("<b>Concepts</b>", styles["Heading2"]))
         concept_data = [["Concept", "Type", "Confidence"]]
-        
+
         # Group by type
         concept_types = {}
         for concept in concepts:
@@ -216,55 +217,61 @@ def export_pdf(result: Dict[str, Any]) -> bytes:
             if ctype not in concept_types:
                 concept_types[ctype] = []
             concept_types[ctype].append(concept)
-        
+
         for ctype, type_concepts in sorted(concept_types.items()):
             for concept in type_concepts[:15]:  # Limit per type
                 confidence = concept.get("confidence", 0) * 100
-                concept_data.append([
-                    concept.get("text", ""),
-                    ctype,
-                    f"{confidence:.1f}%",
-                ])
-        
+                concept_data.append(
+                    [
+                        concept.get("text", ""),
+                        ctype,
+                        f"{confidence:.1f}%",
+                    ]
+                )
+
         if len(concept_data) > 1:
-            concepts_table = Table(concept_data, colWidths=[3*inch, 1.5*inch, 1*inch])
-            concepts_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#6366f1')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f3f4f6')]),
-            ]))
+            concepts_table = Table(concept_data, colWidths=[3 * inch, 1.5 * inch, 1 * inch])
+            concepts_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#6366f1")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                        ("ALIGN", (2, 0), (2, -1), "CENTER"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 10),
+                        ("FONTSIZE", (0, 1), (-1, -1), 9),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                        ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                        ("GRID", (0, 0), (-1, -1), 1, colors.grey),
+                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")]),
+                    ]
+                )
+            )
             story.append(concepts_table)
-        story.append(Spacer(1, 0.2*inch))
-    
+        story.append(Spacer(1, 0.2 * inch))
+
     # Relationships
     if relationships:
-        story.append(Paragraph("<b>Relationships</b>", styles['Heading2']))
+        story.append(Paragraph("<b>Relationships</b>", styles["Heading2"]))
         for rel in relationships[:30]:  # Limit to first 30
             source = rel.get("source", {})
             target = rel.get("target", {})
             rel_type = rel.get("type", "relates_to")
             source_text = source.get("text", "") if isinstance(source, dict) else str(source)
             target_text = target.get("text", "") if isinstance(target, dict) else str(target)
-            story.append(Paragraph(f"<b>{source_text}</b> → [{rel_type}] → <b>{target_text}</b>", styles['Normal']))
+            story.append(Paragraph(f"<b>{source_text}</b> → [{rel_type}] → <b>{target_text}</b>", styles["Normal"]))
         if len(relationships) > 30:
-            story.append(Paragraph(f"<i>... and {len(relationships) - 30} more relationships</i>", styles['Normal']))
-        story.append(Spacer(1, 0.2*inch))
-    
+            story.append(Paragraph(f"<i>... and {len(relationships) - 30} more relationships</i>", styles["Normal"]))
+        story.append(Spacer(1, 0.2 * inch))
+
     # Questions
     if questions:
-        story.append(Paragraph("<b>Generated Questions</b>", styles['Heading2']))
+        story.append(Paragraph("<b>Generated Questions</b>", styles["Heading2"]))
         for q in questions:
-            story.append(Paragraph(f"• {q}", styles['Normal']))
-        story.append(Spacer(1, 0.2*inch))
-    
+            story.append(Paragraph(f"• {q}", styles["Normal"]))
+        story.append(Spacer(1, 0.2 * inch))
+
     # Build PDF
     doc.build(story)
     buffer.seek(0)
@@ -281,33 +288,33 @@ def export_html(result: Dict[str, Any]) -> str:
         HTML string
     """
     html = []
-    
+
     html.append("<!DOCTYPE html>")
     html.append("<html><head>")
     html.append('<meta charset="UTF-8">')
-    html.append('<title>Reasoning Core Analysis Report</title>')
-    html.append('<style>')
-    html.append('body { font-family: Arial, sans-serif; margin: 40px; }')
-    html.append('h1 { color: #1e40af; }')
-    html.append('h2 { color: #3b82f6; margin-top: 30px; }')
-    html.append('table { border-collapse: collapse; width: 100%; margin: 20px 0; }')
-    html.append('th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }')
-    html.append('th { background-color: #3b82f6; color: white; }')
-    html.append('tr:nth-child(even) { background-color: #f3f4f6; }')
-    html.append('.concept-item { margin: 5px 0; }')
-    html.append('.relationship { margin: 10px 0; padding: 10px; background: #f9fafb; border-left: 3px solid #3b82f6; }')
-    html.append('</style>')
+    html.append("<title>Reasoning Core Analysis Report</title>")
+    html.append("<style>")
+    html.append("body { font-family: Arial, sans-serif; margin: 40px; }")
+    html.append("h1 { color: #1e40af; }")
+    html.append("h2 { color: #3b82f6; margin-top: 30px; }")
+    html.append("table { border-collapse: collapse; width: 100%; margin: 20px 0; }")
+    html.append("th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }")
+    html.append("th { background-color: #3b82f6; color: white; }")
+    html.append("tr:nth-child(even) { background-color: #f3f4f6; }")
+    html.append(".concept-item { margin: 5px 0; }")
+    html.append(".relationship { margin: 10px 0; padding: 10px; background: #f9fafb; border-left: 3px solid #3b82f6; }")
+    html.append("</style>")
     html.append("</head><body>")
-    
+
     html.append("<h1>🧠 Reasoning Core Analysis Report</h1>")
     html.append(f"<p><em>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</em></p>")
-    
+
     # Summary
     concepts = result.get("concepts", [])
     relationships = result.get("relationships", [])
     chains = result.get("reasoning_chains", [])
     questions = result.get("questions", [])
-    
+
     html.append("<h2>Summary</h2>")
     html.append("<table>")
     html.append("<tr><th>Metric</th><th>Count</th></tr>")
@@ -318,7 +325,7 @@ def export_html(result: Dict[str, Any]) -> str:
     if result.get("llm_enhanced"):
         html.append("<tr><td>LLM Enhanced</td><td>Yes</td></tr>")
     html.append("</table>")
-    
+
     # Concepts
     if concepts:
         html.append("<h2>Concepts</h2>")
@@ -326,13 +333,13 @@ def export_html(result: Dict[str, Any]) -> str:
         html.append("<tr><th>Concept</th><th>Type</th><th>Confidence</th></tr>")
         for concept in concepts[:100]:  # Limit to first 100
             confidence = concept.get("confidence", 0) * 100
-            html.append(f"<tr>")
+            html.append("<tr>")
             html.append(f"<td>{concept.get('text', '')}</td>")
             html.append(f"<td>{concept.get('type', 'unknown')}</td>")
             html.append(f"<td>{confidence:.1f}%</td>")
-            html.append(f"</tr>")
+            html.append("</tr>")
         html.append("</table>")
-    
+
     # Relationships
     if relationships:
         html.append("<h2>Relationships</h2>")
@@ -342,10 +349,10 @@ def export_html(result: Dict[str, Any]) -> str:
             rel_type = rel.get("type", "relates_to")
             source_text = source.get("text", "") if isinstance(source, dict) else str(source)
             target_text = target.get("text", "") if isinstance(target, dict) else str(target)
-            html.append(f'<div class="relationship">')
+            html.append('<div class="relationship">')
             html.append(f"<strong>{source_text}</strong> → [{rel_type}] → <strong>{target_text}</strong>")
             html.append("</div>")
-    
+
     # Questions
     if questions:
         html.append("<h2>Generated Questions</h2>")
@@ -353,7 +360,7 @@ def export_html(result: Dict[str, Any]) -> str:
         for q in questions:
             html.append(f"<li>{q}</li>")
         html.append("</ul>")
-    
+
     html.append("</body></html>")
-    
+
     return "\n".join(html)

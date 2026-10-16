@@ -1,10 +1,9 @@
 """Async API for reasoning extraction with streaming support."""
 
 import asyncio
-from dataclasses import asdict
 from typing import AsyncIterator, Callable, Dict, List, Optional
 
-from reasoning_core.api.reasoning_api import ProcessingError, ReasoningAPI
+from reasoning_core.api.reasoning_api import ReasoningAPI
 from reasoning_core.plugins.base_domain import BaseDomain
 
 
@@ -18,9 +17,7 @@ class AsyncReasoningAPI(ReasoningAPI):
     - Real-time transcription integration
     """
 
-    def __init__(
-        self, domain: Optional[BaseDomain] = None, max_workers: int = 4
-    ):
+    def __init__(self, domain: Optional[BaseDomain] = None, max_workers: int = 4):
         """Initialize async reasoning API.
 
         Args:
@@ -34,9 +31,7 @@ class AsyncReasoningAPI(ReasoningAPI):
         self.max_workers = max_workers
         self._executor = None
 
-    async def process_text_async(
-        self, text: str, include_graph: bool = True
-    ) -> Dict:
+    async def process_text_async(self, text: str, include_graph: bool = True) -> Dict:
         """Process text asynchronously.
 
         Args:
@@ -53,11 +48,9 @@ class AsyncReasoningAPI(ReasoningAPI):
         """
         # Run synchronous processing in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            self._executor, self.process_text, text, include_graph
-        )
+        return await loop.run_in_executor(self._executor, self.process_text, text, include_graph)
 
-    async def process_stream(
+    async def process_stream(  # noqa: C901
         self,
         text_stream: AsyncIterator[str],
         chunk_size: int = 1000,
@@ -85,7 +78,21 @@ class AsyncReasoningAPI(ReasoningAPI):
             async for result in api.process_stream(transcript_stream):
                 print(f"Processed chunk {result['chunk_num']}")
                 concepts = result['concepts']
+
+        Raises:
+            ValueError: If chunk_size is not positive, overlap is negative,
+                or overlap is not smaller than chunk_size.
         """
+        # Invalid arguments either hang the loop (overlap >= chunk_size keeps
+        # the buffer unchanged) or silently skip input (negative overlap), so
+        # reject them up front.
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be a positive integer")
+        if overlap < 0:
+            raise ValueError("overlap must be non-negative")
+        if overlap >= chunk_size:
+            raise ValueError("overlap must be smaller than chunk_size")
+
         buffer = ""
         previous_overlap = ""
         chunk_num = 0
@@ -112,13 +119,11 @@ class AsyncReasoningAPI(ReasoningAPI):
                     progress_callback(chunk_num, truncated_text)
 
                 try:
-                    result = await self.process_text_async(
-                        text_to_process, include_graph=include_graph
-                    )
+                    result = await self.process_text_async(text_to_process, include_graph=include_graph)
                     result["chunk_num"] = chunk_num
                     result["is_final"] = False
                     yield result
-                except ProcessingError as e:
+                except Exception as e:
                     # Yield error but continue processing
                     yield {
                         "chunk_num": chunk_num,
@@ -138,13 +143,11 @@ class AsyncReasoningAPI(ReasoningAPI):
                 progress_callback(chunk_num, "Final chunk")
 
             try:
-                result = await self.process_text_async(
-                    final_text, include_graph=include_graph
-                )
+                result = await self.process_text_async(final_text, include_graph=include_graph)
                 result["chunk_num"] = chunk_num
                 result["is_final"] = True
                 yield result
-            except ProcessingError as e:
+            except Exception as e:
                 yield {
                     "chunk_num": chunk_num,
                     "is_final": True,
@@ -193,12 +196,10 @@ class AsyncReasoningAPI(ReasoningAPI):
 
             async with semaphore:
                 try:
-                    result = await self.process_text_async(
-                        text, include_graph=include_graph
-                    )
+                    result = await self.process_text_async(text, include_graph=include_graph)
                     results[index] = result
-                except ProcessingError as e:
-                    # Store error result
+                except Exception as e:
+                    # Store error result and continue with the remaining items
                     results[index] = {
                         "error": str(e),
                         "concepts": [],
@@ -211,19 +212,14 @@ class AsyncReasoningAPI(ReasoningAPI):
                     progress_callback(completed, total)
 
         # Create tasks for all texts
-        tasks = [
-            asyncio.create_task(process_with_semaphore(i, text))
-            for i, text in enumerate(texts)
-        ]
+        tasks = [asyncio.create_task(process_with_semaphore(i, text)) for i, text in enumerate(texts)]
 
         # Wait for all tasks to complete
         await asyncio.gather(*tasks)
 
         return results
 
-    async def merge_stream_results(
-        self, stream_results: AsyncIterator[Dict]
-    ) -> Dict:
+    async def merge_stream_results(self, stream_results: AsyncIterator[Dict]) -> Dict:
         """Merge results from streaming processing into single result.
 
         Combines concepts, relationships, and chains from all chunks,
@@ -281,12 +277,8 @@ class AsyncReasoningAPI(ReasoningAPI):
         if all_concepts:
             try:
                 # Import here to avoid circular dependencies
-                from reasoning_core.extractors.concept_extractor import (
-                    Concept,
-                )
-                from reasoning_core.extractors.relationship_mapper import (
-                    Relationship,
-                )
+                from reasoning_core.extractors.concept_extractor import Concept
+                from reasoning_core.extractors.relationship_mapper import Relationship
 
                 concepts = [
                     Concept(

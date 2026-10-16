@@ -73,7 +73,7 @@ REM Upgrade pip
 REM Install Python dependencies
 echo Installing Python packages...
 %PYTHON_CMD% -m pip install -e . --quiet
-%PYTHON_CMD% -m pip install -r requirements-web.txt --quiet
+%PYTHON_CMD% -m pip install -e ".[web]" --quiet
 
 echo ✓ Python dependencies installed
 echo.

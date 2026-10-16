@@ -1,13 +1,14 @@
 """Ollama LLM service integration."""
 
-import os
 import json
 import logging
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
+
 import requests
-from reasoning_core.llm.base import LLMService
+
 from reasoning_core.extractors.concept_extractor import Concept
 from reasoning_core.extractors.relationship_mapper import Relationship
+from reasoning_core.llm.base import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +52,10 @@ class OllamaService(LLMService):
             # Check if model is available
             models = response.json().get("models", [])
             model_names = [m.get("name", "") for m in models]
-            
+
             # Check for exact match or compatible version
-            available = any(
-                self.model in name or name.startswith(self.model.split(":")[0])
-                for name in model_names
-            )
-            
+            available = any(self.model in name or name.startswith(self.model.split(":")[0]) for name in model_names)
+
             self._available = available
             return available
 
@@ -154,22 +152,22 @@ Only return valid JSON, no other text."""
 
         try:
             response = self._call_ollama(user_prompt, system_prompt)
-            
+
             # Parse JSON response
             # Sometimes model returns markdown code blocks
             response = response.strip()
             if response.startswith("```"):
                 # Extract JSON from code block
                 lines = response.split("\n")
-                json_lines = [l for l in lines if not l.startswith("```")]
+                json_lines = [line for line in lines if not line.startswith("```")]
                 response = "\n".join(json_lines)
             elif response.startswith("```json"):
                 lines = response.split("\n")
-                json_lines = [l for l in lines[1:] if not l.startswith("```")]
+                json_lines = [line for line in lines[1:] if not line.startswith("```")]
                 response = "\n".join(json_lines)
 
             concepts_data = json.loads(response)
-            
+
             # Convert to Concept objects
             concepts = []
             for item in concepts_data:
@@ -180,12 +178,12 @@ Only return valid JSON, no other text."""
                     position = text_lower.find(concept_text_lower)
                     if position == -1:
                         position = 0
-                    
+
                     # Get context
                     context_start = max(0, position - 50)
                     context_end = min(len(text), position + len(item.get("text", "")) + 50)
                     context = text[context_start:context_end]
-                    
+
                     concepts.append(
                         Concept(
                             text=item.get("text", ""),
@@ -202,7 +200,7 @@ Only return valid JSON, no other text."""
             logger.warning(f"LLM concept extraction failed: {e}, falling back to pattern extraction")
             return existing_concepts or []
 
-    def infer_relationships(
+    def infer_relationships(  # noqa: C901
         self,
         concepts: List[Concept],
         text: str,
@@ -261,41 +259,41 @@ Return relationships as JSON array."""
 
         try:
             response = self._call_ollama(user_prompt, system_prompt)
-            
+
             # Parse JSON response
             response = response.strip()
             if response.startswith("```"):
                 lines = response.split("\n")
-                json_lines = [l for l in lines if not l.startswith("```")]
+                json_lines = [line for line in lines if not line.startswith("```")]
                 response = "\n".join(json_lines)
 
             relationships_data = json.loads(response)
-            
+
             # Convert to Relationship objects
             relationships = []
             concept_map = {c.text.lower(): c for c in concepts}
-            
+
             for item in relationships_data:
                 if isinstance(item, dict):
                     source_text = item.get("source", "")
                     target_text = item.get("target", "")
-                    
+
                     source_concept = concept_map.get(source_text.lower())
                     target_concept = concept_map.get(target_text.lower())
-                    
+
                     # Try fuzzy matching if exact match fails
                     if not source_concept:
                         for c in concepts:
                             if c.text.lower() in source_text.lower() or source_text.lower() in c.text.lower():
                                 source_concept = c
                                 break
-                    
+
                     if not target_concept:
                         for c in concepts:
                             if c.text.lower() in target_text.lower() or target_text.lower() in c.text.lower():
                                 target_concept = c
                                 break
-                    
+
                     if source_concept and target_concept and source_concept != target_concept:
                         relationships.append(
                             Relationship(
@@ -309,10 +307,7 @@ Return relationships as JSON array."""
 
             # Merge with existing relationships, removing duplicates
             if existing_relationships:
-                existing_set = {
-                    (r.source.text.lower(), r.target.text.lower(), r.type)
-                    for r in existing_relationships
-                }
+                existing_set = {(r.source.text.lower(), r.target.text.lower(), r.type) for r in existing_relationships}
                 new_relationships = [
                     r
                     for r in relationships

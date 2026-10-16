@@ -1,9 +1,10 @@
 """Website scraping utilities."""
 
-from typing import Dict, Optional
-import re
 import ipaddress
+import re
+from typing import Dict, Optional
 from urllib.parse import urlparse
+
 from reasoning_core.web.config import ALLOW_PRIVATE_IPS, ALLOWED_URL_DOMAINS, URL_SCRAPE_TIMEOUT
 
 
@@ -13,7 +14,7 @@ class ScrapingError(Exception):
     pass
 
 
-def is_safe_url(url: str) -> bool:
+def is_safe_url(url: str) -> bool:  # noqa: C901
     """Check if URL is safe to fetch (prevent SSRF attacks).
 
     Args:
@@ -37,7 +38,7 @@ def is_safe_url(url: str) -> bool:
                 if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                     return False
             # Block multicast and broadcast
-            if ip.is_multicast or (hasattr(ip, 'is_global') and not ip.is_global):
+            if ip.is_multicast or (hasattr(ip, "is_global") and not ip.is_global):
                 return False
         except ValueError:
             # Hostname, not an IP - check domain whitelist if configured
@@ -66,7 +67,7 @@ def is_safe_url(url: str) -> bool:
         return False
 
 
-def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:
+def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:  # noqa: C901
     """Scrape text content from a website.
 
     Args:
@@ -103,18 +104,14 @@ def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:
 
     # Check for SSRF vulnerabilities
     if not is_safe_url(url):
-        raise ScrapingError(
-            f"URL not allowed: {url}. Private/internal URLs are blocked for security."
-        )
+        raise ScrapingError(f"URL not allowed: {url}. Private/internal URLs are blocked for security.")
 
     try:
         import requests
         from bs4 import BeautifulSoup
 
         # Make request
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.get(url, headers=headers, timeout=timeout)
         response.raise_for_status()
 
@@ -126,12 +123,7 @@ def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:
             script.decompose()
 
         # Get main content (prefer article, main, or body)
-        main_content = (
-            soup.find("article")
-            or soup.find("main")
-            or soup.find("body")
-            or soup
-        )
+        main_content = soup.find("article") or soup.find("main") or soup.find("body") or soup
 
         # Extract text
         text = main_content.get_text(separator="\n", strip=True)

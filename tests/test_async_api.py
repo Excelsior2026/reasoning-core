@@ -75,17 +75,13 @@ async def test_process_text_async_error_handling(async_api):
 @pytest.mark.asyncio
 async def test_process_text_async_without_graph(async_api, medical_text):
     """Test async processing without knowledge graph."""
-    result = await async_api.process_text_async(
-        medical_text, include_graph=False
-    )
+    result = await async_api.process_text_async(medical_text, include_graph=False)
 
     assert "concepts" in result
     assert "knowledge_graph" not in result or result["knowledge_graph"] is None
 
 
-async def create_text_stream(
-    text: str, chunk_size: int = 50
-) -> AsyncIterator[str]:
+async def create_text_stream(text: str, chunk_size: int = 50) -> AsyncIterator[str]:
     """Create async text stream for testing."""
     for i in range(0, len(text), chunk_size):
         await asyncio.sleep(0.01)  # Simulate streaming delay
@@ -98,9 +94,7 @@ async def test_process_stream(async_api, long_medical_text):
     stream = create_text_stream(long_medical_text, chunk_size=100)
     results = []
 
-    async for result in async_api.process_stream(
-        stream, chunk_size=200, overlap=50
-    ):
+    async for result in async_api.process_stream(stream, chunk_size=200, overlap=50):
         results.append(result)
         assert "chunk_num" in result
         assert "is_final" in result
@@ -127,9 +121,7 @@ async def test_process_stream_with_progress(async_api, long_medical_text):
     stream = create_text_stream(long_medical_text, chunk_size=100)
     results = []
 
-    async for result in async_api.process_stream(
-        stream, chunk_size=200, progress_callback=progress_callback
-    ):
+    async for result in async_api.process_stream(stream, chunk_size=200, progress_callback=progress_callback):
         results.append(result)
 
     # Progress callback should have been called
@@ -169,9 +161,7 @@ async def test_process_batch_with_progress(async_api):
     def progress_callback(completed: int, total: int):
         progress_updates.append((completed, total))
 
-    results = await async_api.process_batch(
-        texts, progress_callback=progress_callback
-    )
+    results = await async_api.process_batch(texts, progress_callback=progress_callback)
 
     assert len(results) == len(texts)
     assert len(progress_updates) == len(texts)
@@ -282,14 +272,36 @@ async def test_stream_empty_chunks(async_api):
         yield "Diagnosis: MI."
 
     results = []
-    async for result in async_api.process_stream(
-        stream_with_empties(), chunk_size=50
-    ):
+    async for result in async_api.process_stream(stream_with_empties(), chunk_size=50, overlap=10):
         results.append(result)
 
     # Should still process successfully
     assert len(results) > 0
     assert any(len(r["concepts"]) > 0 for r in results)
+
+
+@pytest.mark.asyncio
+async def test_stream_rejects_invalid_overlap(async_api):
+    """An overlap >= chunk_size must be rejected instead of looping forever."""
+
+    async def stream():
+        yield "Patient has fever. ECG shows ST elevation."
+
+    with pytest.raises(ValueError):
+        async for _ in async_api.process_stream(stream(), chunk_size=50, overlap=50):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_stream_rejects_negative_overlap(async_api):
+    """A negative overlap silently skipped input text; it must be rejected."""
+
+    async def stream():
+        yield "Patient has fever. ECG shows ST elevation."
+
+    with pytest.raises(ValueError):
+        async for _ in async_api.process_stream(stream(), chunk_size=50, overlap=-5):
+            pass
 
 
 @pytest.mark.asyncio
@@ -306,9 +318,7 @@ async def test_set_domain_async(medical_text):
     api.set_domain(BusinessDomain())
 
     # Process business text
-    business_text = (
-        "Close the deal with enterprise customer. Upsell premium tier."
-    )
+    business_text = "Close the deal with enterprise customer. Upsell premium tier."
     result2 = await api.process_text_async(business_text)
 
     assert "concepts" in result1

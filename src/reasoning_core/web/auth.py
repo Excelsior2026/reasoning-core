@@ -2,19 +2,14 @@
 
 import os
 import secrets
-import jwt
-import time
-from typing import Optional, Dict
 from datetime import datetime, timedelta
-from fastapi import HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
-from reasoning_core.web.config import (
-    AUTH_ENABLED,
-    JWT_SECRET_KEY,
-    JWT_ALGORITHM,
-    JWT_EXPIRE_HOURS,
-    API_KEY_HEADER,
-)
+from typing import Dict, Optional
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+
+from reasoning_core.web.config import API_KEY_HEADER, AUTH_ENABLED, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET_KEY
 
 # Security schemes
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -86,15 +81,16 @@ def verify_jwt_token(token: str) -> Dict:
         raise AuthenticationError("JWT secret key not configured")
 
     try:
-        if hasattr(jwt, 'decode'):
+        if hasattr(jwt, "decode"):
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         else:
             # Fallback for PyJWT
             from jwt import decode
+
             payload = decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return payload
     except Exception as e:
-        if "expired" in str(e).lower() or isinstance(e, getattr(jwt, 'ExpiredSignatureError', Exception)):
+        if "expired" in str(e).lower() or isinstance(e, getattr(jwt, "ExpiredSignatureError", Exception)):
             raise AuthenticationError("Token has expired")
         raise AuthenticationError("Invalid token")
 
@@ -158,9 +154,7 @@ async def authenticate(
             return {"user_id": "api_user", "username": "api", "auth_type": "api_key"}
 
     # No valid authentication found
-    raise AuthenticationError(
-        "Authentication required. Provide either a Bearer token or X-API-Key header."
-    )
+    raise AuthenticationError("Authentication required. Provide either a Bearer token or X-API-Key header.")
 
 
 async def optional_auth(

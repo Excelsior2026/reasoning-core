@@ -166,7 +166,7 @@ Update the version in:
 ### Adding Additional Dependencies
 
 **Python packages**: Add to:
-- `requirements-web.txt` (for web dependencies)
+- the `[web]` extra in `pyproject.toml` (for web dependencies)
 - `pyproject.toml` (for core dependencies)
 
 **Node.js packages**: Add to `web/package.json`

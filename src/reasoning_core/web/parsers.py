@@ -1,8 +1,8 @@
 """Document parsers for various file formats."""
 
 import os
-from typing import Dict, Optional
 from pathlib import Path
+from typing import Dict, Optional
 
 
 class DocumentParserError(Exception):
@@ -77,14 +77,12 @@ def _parse_pdf(file_path: str) -> Dict[str, str]:
             },
         }
     except ImportError:
-        raise DocumentParserError(
-            "PyPDF2 not installed. Install with: pip install PyPDF2"
-        )
+        raise DocumentParserError("PyPDF2 not installed. Install with: pip install PyPDF2")
     except Exception as e:
         raise DocumentParserError(f"PDF parsing failed: {e}") from e
 
 
-def _parse_docx(file_path: str) -> Dict[str, str]:
+def _parse_docx(file_path: str) -> Dict[str, str]:  # noqa: C901
     """Parse DOCX file."""
     try:
         from docx import Document
@@ -117,9 +115,7 @@ def _parse_docx(file_path: str) -> Dict[str, str]:
             },
         }
     except ImportError:
-        raise DocumentParserError(
-            "python-docx not installed. Install with: pip install python-docx"
-        )
+        raise DocumentParserError("python-docx not installed. Install with: pip install python-docx")
     except Exception as e:
         raise DocumentParserError(f"DOCX parsing failed: {e}") from e
 
@@ -184,9 +180,7 @@ def _parse_html(file_path: str) -> Dict[str, str]:
             },
         }
     except ImportError:
-        raise DocumentParserError(
-            "beautifulsoup4 not installed. Install with: pip install beautifulsoup4"
-        )
+        raise DocumentParserError("beautifulsoup4 not installed. Install with: pip install beautifulsoup4")
     except Exception as e:
         raise DocumentParserError(f"HTML parsing failed: {e}") from e
 

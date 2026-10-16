@@ -26,7 +26,6 @@ mkdir -p "$PAYLOAD_DIR/$INSTALL_DIR"
 echo "📋 Copying source files..."
 cp -r "$PROJECT_ROOT/src" "$PAYLOAD_DIR/$INSTALL_DIR/"
 cp "$PROJECT_ROOT/pyproject.toml" "$PAYLOAD_DIR/$INSTALL_DIR/" 2>/dev/null || true
-cp "$PROJECT_ROOT/requirements-web.txt" "$PAYLOAD_DIR/$INSTALL_DIR/" 2>/dev/null || true
 
 # Copy web frontend
 if [ -d "$PROJECT_ROOT/web" ]; then
@@ -112,15 +111,14 @@ Please note: This installation may take a few minutes to download and install
 all required dependencies.
 EOF
 
-cat > "$PKG_BUILD_DIR/License.txt" <<EOF
-MIT License
-
-Copyright (c) 2026 Excelsior2026
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction...
+# Ship the project's actual (proprietary) LICENSE in the installer license screen
+if [ -f "$PROJECT_ROOT/LICENSE" ]; then
+    cp "$PROJECT_ROOT/LICENSE" "$PKG_BUILD_DIR/License.txt"
+else
+    cat > "$PKG_BUILD_DIR/License.txt" <<EOF
+Proprietary software - see the LICENSE file in the project repository.
 EOF
+fi
 
 cat > "$PKG_BUILD_DIR/Conclusion.txt" <<EOF
 Installation Complete!
