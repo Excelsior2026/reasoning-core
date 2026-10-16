@@ -81,11 +81,10 @@ python3 -m pip install --upgrade \
     python-multipart>=0.0.6 \
     requests>=2.31.0 \
     beautifulsoup4>=4.12.0 \
-    PyPDF2>=3.0.0 \
+    pypdf>=4.0.0 \
     python-docx>=1.0.0 \
     aiofiles>=23.0.0 \
     pyjwt>=2.8.0 \
-    "python-jose[cryptography]>=3.3.0" \
     --upgrade-strategy only-if-needed
 
 # Also install reasoning-core itself (in editable mode if source exists, otherwise from package)
