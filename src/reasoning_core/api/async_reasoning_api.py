@@ -80,13 +80,16 @@ class AsyncReasoningAPI(ReasoningAPI):
                 concepts = result['concepts']
 
         Raises:
-            ValueError: If chunk_size is not positive or overlap is not
-                smaller than chunk_size.
+            ValueError: If chunk_size is not positive, overlap is negative,
+                or overlap is not smaller than chunk_size.
         """
-        # An overlap >= chunk_size would leave the buffer unchanged and loop
-        # forever, so reject it up front.
+        # Invalid arguments either hang the loop (overlap >= chunk_size keeps
+        # the buffer unchanged) or silently skip input (negative overlap), so
+        # reject them up front.
         if chunk_size <= 0:
             raise ValueError("chunk_size must be a positive integer")
+        if overlap < 0:
+            raise ValueError("overlap must be non-negative")
         if overlap >= chunk_size:
             raise ValueError("overlap must be smaller than chunk_size")
 

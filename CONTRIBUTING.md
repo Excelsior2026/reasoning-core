@@ -238,7 +238,7 @@ Use the feature request template and describe:
 
 ## 📜 License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+reasoning-core is **proprietary software** (see [LICENSE](LICENSE)). By contributing, you agree that your contributions become part of the project and are governed by those same proprietary terms. Because the LICENSE restricts copying, modifying, and distributing without prior written permission, coordinate with the maintainer before sending patches.
 
 ## 🙏 Recognition
 

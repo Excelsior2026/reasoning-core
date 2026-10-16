@@ -116,7 +116,7 @@ This document summarizes all the security and code quality fixes implemented in 
 
 ## New Dependencies
 
-The following new dependencies were added to `pyproject.toml` and `requirements-web.txt`:
+The following new dependencies were added to the project's `[web]` extra in `pyproject.toml` (installed with `pip install -e ".[web]"`; these were originally tracked in `requirements-web.txt`, since removed):
 
 - `aiofiles>=23.0.0` - Async file operations
 - `pyjwt>=2.8.0` - JWT token handling
@@ -179,7 +179,7 @@ All configuration can be done via environment variables:
 
 If you have existing deployments:
 
-1. Install new dependencies: `pip install -r requirements-web.txt`
+1. Install new dependencies: `pip install -e ".[web]"`
 2. Set environment variables (see above)
 3. Restart the server
 4. Existing tasks will expire after 1 hour

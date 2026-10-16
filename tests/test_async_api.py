@@ -293,6 +293,18 @@ async def test_stream_rejects_invalid_overlap(async_api):
 
 
 @pytest.mark.asyncio
+async def test_stream_rejects_negative_overlap(async_api):
+    """A negative overlap silently skipped input text; it must be rejected."""
+
+    async def stream():
+        yield "Patient has fever. ECG shows ST elevation."
+
+    with pytest.raises(ValueError):
+        async for _ in async_api.process_stream(stream(), chunk_size=50, overlap=-5):
+            pass
+
+
+@pytest.mark.asyncio
 async def test_set_domain_async(medical_text):
     """Test changing domain in async API."""
     from reasoning_core import BusinessDomain

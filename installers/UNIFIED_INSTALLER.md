@@ -52,7 +52,7 @@ install-unified.bat --no-start
 2. **Python Dependencies**
    - Upgrades pip to latest version
    - Installs reasoning-core in editable mode
-   - Installs all web dependencies from `requirements-web.txt`
+   - Installs all web dependencies from the project's `[web]` extra (`pip install -e ".[web]"`)
 
 3. **Node.js Dependencies** (if Node.js is available)
    - Installs all npm packages from `web/package.json`

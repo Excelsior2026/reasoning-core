@@ -23,10 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `/api/domains/{domain_id}` route shadowed the internal domain lookup
   helper; the route function was renamed
 - `AsyncReasoningAPI.process_stream` looped forever when `overlap` was greater
-  than or equal to `chunk_size`; both arguments are now validated
+  than or equal to `chunk_size`; invalid arguments (non-positive `chunk_size`,
+  negative `overlap`, or `overlap >= chunk_size`) are now rejected up front
 - Batch analysis records per-item failures instead of aborting the batch
 - The test suite now runs end to end (pytest-asyncio declared as a dev
   dependency); previously four tests failed and one hung
+- URL validation now actually runs on `URLRequest` (the validator sat on a
+  model with no `url` field); it accepts long TLDs, IPv6 literal hosts, and
+  fragments, and still rejects non-HTTP(S) URLs
 
 ### Changed
 - Web dependencies moved to the optional `web` extra
@@ -34,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI coverage gate now measures the tested core modules (web layer excluded
   until it has tests) instead of a fixed 80% over untested code
 - Formatting/linting tools pinned to the pre-commit versions for deterministic CI
+- Contribution guide, installer documentation, and the macOS installer license
+  screen now consistently reflect the proprietary `LICENSE` (they previously
+  mixed in MIT references)
 
 ### Added
 - Initial release of reasoning-core
