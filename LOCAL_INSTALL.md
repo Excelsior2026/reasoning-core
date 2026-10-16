@@ -80,11 +80,8 @@ If you prefer to install manually or the script doesn't work for your system:
 ### Step 1: Install Python Dependencies
 
 ```bash
-# Install the package
-pip install -e .
-
-# Install web dependencies
-pip install -r requirements-web.txt
+# Install the package with web dependencies
+pip install -e ".[web]"
 ```
 
 ### Step 2: Install Node.js Dependencies (for Web UI)
@@ -215,8 +212,7 @@ source venv/bin/activate
 venv\Scripts\activate
 
 # Install dependencies
-pip install -e .
-pip install -r requirements-web.txt
+pip install -e ".[web]"
 ```
 
 ## Virtual Environment (Recommended)
@@ -233,8 +229,7 @@ source venv/bin/activate  # macOS/Linux
 venv\Scripts\activate     # Windows
 
 # Install dependencies
-pip install -e .
-pip install -r requirements-web.txt
+pip install -e ".[web]"
 
 # Install Node.js dependencies
 cd web && npm install && cd ..

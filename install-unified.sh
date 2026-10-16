@@ -83,7 +83,7 @@ $PIP_CMD install --upgrade pip --quiet
 # Install Python dependencies
 echo -e "${BLUE}Installing Python packages...${NC}"
 $PIP_CMD install -e . --quiet
-$PIP_CMD install -r requirements-web.txt --quiet
+$PIP_CMD install -e ".[web]" --quiet
 
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
 echo ""

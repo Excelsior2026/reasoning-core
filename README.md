@@ -5,7 +5,7 @@ _A BagelTech project._
 **Universal reasoning extraction engine - Transform expertise into intelligent knowledge graphs**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](#-license)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 Reasoning Core is a Python library that extracts expert reasoning patterns from text and builds intelligent knowledge graphs. It transforms unstructured expertise into structured, queryable knowledge.
@@ -19,7 +19,7 @@ Reasoning Core is a Python library that extracts expert reasoning patterns from 
 - **🎯 Multi-Domain Support**: Medical, business, legal, engineering, and custom domains
 - **🔌 Plugin Architecture**: Extensible domain-specific reasoning
 - **⚡ Async Support**: Non-blocking processing for real-time applications
-- **🚀 Production Ready**: Type-safe, tested, documented
+- **🚀 Integration Ready**: Typed core engine, CI-verified tests, documented
 
 ## 🚀 Quick Start
 
@@ -38,10 +38,15 @@ These installers automatically:
 
 See [LOCAL_INSTALL.md](LOCAL_INSTALL.md) for details.
 
-#### Option 2: From PyPI
+#### Option 2: From Source
+
+The package is not published to PyPI (the `reasoning-core` name there belongs
+to an unrelated project), so install from a clone:
 
 ```bash
-pip install reasoning-core
+git clone https://github.com/Excelsior2026/reasoning-core.git
+cd reasoning-core
+pip install -e ".[web]"   # core engine only: pip install -e .
 ```
 
 #### Option 3: Unified Installer (Recommended for Local Use)
@@ -446,8 +451,7 @@ cd reasoning-core
 ```bash
 git clone https://github.com/Excelsior2026/reasoning-core.git
 cd reasoning-core
-pip install -e .
-pip install -r requirements-web.txt
+pip install -e ".[web]"
 cd web && npm install && cd ..
 ```
 
@@ -459,7 +463,7 @@ To create installer packages for macOS or Windows, see [installers/BUILD_INSTRUC
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+pip install -e ".[dev,web]"
 
 # Run tests
 pytest
@@ -524,7 +528,7 @@ See the `examples/` directory for comprehensive usage examples:
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) for details
+Proprietary — all rights reserved. See [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 

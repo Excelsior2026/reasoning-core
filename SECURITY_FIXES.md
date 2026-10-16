@@ -1,5 +1,10 @@
 # Security and Code Quality Fixes
 
+> **Status note (2026-10-15):** Written against a web layer that could not
+> previously be imported (fixed in the P0 pull request). Treat the "✅" marks
+> below as intended controls that still require verification, not as a
+> verified security posture.
+
 This document summarizes all the security and code quality fixes implemented in the reasoning-core web API.
 
 ## Critical Security Fixes

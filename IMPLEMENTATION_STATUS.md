@@ -1,5 +1,10 @@
 # Implementation Status
 
+> **Status note (2026-10-15):** This document predates the P0 fixes (see the
+> recent pull requests). Several "✅ Complete" items below described code that
+> could not previously run — the web package did not even import. Treat this
+> file as historical intent, not as a verified status report.
+
 ## ✅ Completed Enhancements
 
 ### 1. LLM Integration with GPU Support ✅

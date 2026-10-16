@@ -80,11 +80,8 @@ $PIP_CMD install --upgrade pip --quiet
 echo -e "${BLUE}Installing Python packages...${NC}"
 $PIP_CMD install -e . --quiet
 
-# Install web dependencies if requirements-web.txt exists
-if [ -f "requirements-web.txt" ]; then
-    echo -e "${BLUE}Installing web dependencies...${NC}"
-    $PIP_CMD install -r requirements-web.txt --quiet
-fi
+# Install web dependencies (FastAPI server, document parsing)
+$PIP_CMD install -e ".[web]" --quiet
 
 echo ""
 echo -e "${GREEN}✓ Python dependencies installed${NC}"
