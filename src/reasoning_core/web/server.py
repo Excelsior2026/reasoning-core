@@ -19,22 +19,25 @@ from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from reasoning_core import BusinessDomain, MedicalDomain, MeetingDomain, ReasoningAPI
-from reasoning_core.web.auth import AuthenticationError, optional_auth
+from reasoning_core.web.auth import AuthenticationError, authenticate, optional_auth
 from reasoning_core.web.cache import cache_text_analysis, cleanup_caches, get_cache_stats, get_cached_text_analysis
 from reasoning_core.web.config import (
+    AUTH_ENABLED,
     CORS_ALLOW_CREDENTIALS,
     CORS_ALLOW_HEADERS,
     CORS_ALLOW_METHODS,
     CORS_ALLOW_ORIGINS,
     FILE_CLEANUP_INTERVAL_SECONDS,
     FILE_MAX_AGE_SECONDS,
+    HOST,
     LLM_ENABLED,
     LOG_FILE,
     LOG_LEVEL,
+    PORT,
     TASK_EXPIRY_SECONDS,
     UPLOAD_DIR,
 )
-from reasoning_core.web.domain_builder import get_domain_builder
+from reasoning_core.web.domain_builder import get_domain_builder, validate_domain_id
 from reasoning_core.web.exports import export_html, export_markdown, export_pdf
 from reasoning_core.web.parsers import DocumentParserError, parse_document
 from reasoning_core.web.progress import create_progress_tracker, get_progress_tracker, remove_progress_tracker
@@ -193,6 +196,16 @@ async def startup_event():
     logger.info("Starting Reasoning Core Web Server")
     logger.info(f"Upload directory: {UPLOAD_DIR}")
     logger.info(f"CORS allowed origins: {CORS_ALLOW_ORIGINS}")
+    if not AUTH_ENABLED:
+        logger.warning(
+            "Authentication is disabled (REASONING_CORE_AUTH_ENABLED=false). Do not expose this server "
+            "beyond localhost; set REASONING_CORE_AUTH_ENABLED=true and REASONING_CORE_API_KEYS first."
+        )
+        if HOST not in ("127.0.0.1", "::1", "localhost"):
+            logger.warning(
+                f"Server is configured to bind {HOST} with authentication disabled - anyone who can "
+                "reach this port has full API access."
+            )
     asyncio.create_task(periodic_cleanup())
     asyncio.create_task(periodic_cache_cleanup())
 
@@ -285,7 +298,7 @@ async def get_cache_statistics(auth: Optional[Dict] = Depends(optional_auth)):
 
 
 @app.post("/api/cache/clear")
-async def clear_cache_endpoint(auth: Optional[Dict] = Depends(optional_auth)):
+async def clear_cache_endpoint(auth: Dict = Depends(authenticate)):
     """Clear all caches."""
     from reasoning_core.web.cache import clear_cache
 
@@ -316,7 +329,7 @@ async def list_domains(auth: Optional[Dict] = Depends(optional_auth)):
 @app.post("/api/domains")
 async def create_domain(
     config: Dict[str, Any],
-    auth: Optional[Dict] = Depends(optional_auth),
+    auth: Dict = Depends(authenticate),
 ):
     """Create or update a custom domain.
 
@@ -325,10 +338,19 @@ async def create_domain(
 
     Returns:
         Created domain metadata
+
+    Raises:
+        HTTPException: If the domain id or configuration is invalid
     """
     import time
 
     builder = get_domain_builder()
+
+    if "id" in config:
+        try:
+            validate_domain_id(config["id"])
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     # Add timestamps
     if "id" in config and builder.load_domain(config["id"]):
@@ -359,7 +381,10 @@ async def get_domain_config(domain_id: str, auth: Optional[Dict] = Depends(optio
         Domain configuration
     """
     builder = get_domain_builder()
-    config = builder.load_domain(domain_id)
+    try:
+        config = builder.load_domain(domain_id)
+    except ValueError:
+        config = None
 
     if not config:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
@@ -368,7 +393,7 @@ async def get_domain_config(domain_id: str, auth: Optional[Dict] = Depends(optio
 
 
 @app.delete("/api/domains/{domain_id}")
-async def delete_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_auth)):
+async def delete_domain(domain_id: str, auth: Dict = Depends(authenticate)):
     """Delete custom domain.
 
     Args:
@@ -378,7 +403,10 @@ async def delete_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_
         Deletion status
     """
     builder = get_domain_builder()
-    deleted = builder.delete_domain(domain_id)
+    try:
+        deleted = builder.delete_domain(domain_id)
+    except ValueError:
+        deleted = False
 
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
@@ -390,7 +418,7 @@ async def delete_domain(domain_id: str, auth: Optional[Dict] = Depends(optional_
 async def test_domain(
     domain_id: str,
     test_text: str,
-    auth: Optional[Dict] = Depends(optional_auth),
+    auth: Dict = Depends(authenticate),
 ):
     """Test custom domain on sample text.
 
@@ -402,7 +430,10 @@ async def test_domain(
         Test results
     """
     builder = get_domain_builder()
-    config = builder.load_domain(domain_id)
+    try:
+        config = builder.load_domain(domain_id)
+    except ValueError:
+        config = None
 
     if not config:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
@@ -489,7 +520,7 @@ async def stream_progress(task_id: str):
 
 
 @app.post("/api/analyze/text", response_model=AnalysisResponse)
-async def analyze_text(request: AnalysisRequest, auth: Optional[Dict] = Depends(optional_auth)):  # noqa: C901
+async def analyze_text(request: AnalysisRequest, auth: Dict = Depends(authenticate)):  # noqa: C901
     """Analyze text directly."""
     logger.info(f"Text analysis request: domain={request.domain}, length={len(request.text)}")
 
@@ -603,7 +634,7 @@ async def analyze_file(  # noqa: C901
     file: UploadFile = File(...),
     domain: str = Form(default="generic"),
     use_llm: Optional[bool] = Form(default=None),
-    auth: Optional[Dict] = Depends(optional_auth),
+    auth: Dict = Depends(authenticate),
 ):
     """Analyze uploaded document file."""
     logger.info(f"File upload request: filename={file.filename}, domain={domain}")
@@ -843,7 +874,7 @@ def process_file_task(task_id: str, file_path: str, domain: str, use_llm: bool =
 async def analyze_url(
     background_tasks: BackgroundTasks,
     request: URLRequest,
-    auth: Optional[Dict] = Depends(optional_auth),
+    auth: Dict = Depends(authenticate),
 ):
     """Analyze website URL."""
     use_llm = request.use_llm if request.use_llm is not None else LLM_ENABLED
@@ -1184,7 +1215,7 @@ async def export_results_html(task_id: str, auth: Optional[Dict] = Depends(optio
 async def analyze_batch(
     background_tasks: BackgroundTasks,
     request: BatchAnalysisRequest,
-    auth: Optional[Dict] = Depends(optional_auth),
+    auth: Dict = Depends(authenticate),
 ):
     """Analyze multiple items in batch."""
     logger.info(f"Batch analysis request: {len(request.items)} items, domain={request.domain}")
@@ -1367,4 +1398,4 @@ async def global_exception_handler(request: Request, exc: Exception):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=LOG_LEVEL.lower())
+    uvicorn.run(app, host=HOST, port=PORT, log_level=LOG_LEVEL.lower())

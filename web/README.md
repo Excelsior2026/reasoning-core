@@ -14,7 +14,7 @@ pip install -e ".[web]"
 
 Or install manually:
 ```bash
-pip install fastapi uvicorn python-multipart requests beautifulsoup4 PyPDF2 python-docx
+pip install fastapi uvicorn python-multipart requests beautifulsoup4 pypdf python-docx
 ```
 
 2. Run the server:
@@ -25,6 +25,11 @@ uvicorn reasoning_core.web.server:app --reload --port 8000
 ```
 
 The API will be available at `http://localhost:8000`
+
+By default the server binds only to `127.0.0.1` and runs with authentication
+disabled (local mode). Before exposing it beyond localhost, set
+`REASONING_CORE_AUTH_ENABLED=true` and `REASONING_CORE_API_KEYS`; state-changing
+endpoints then require the `X-API-Key` header (or a Bearer JWT).
 
 ### Frontend (React + Vite)
 

@@ -26,8 +26,15 @@ MAX_TASKS_PER_USER = int(os.getenv("REASONING_CORE_MAX_TASKS_PER_USER", "100"))
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("REASONING_CORE_REQUEST_TIMEOUT", "30"))
 URL_SCRAPE_TIMEOUT = int(os.getenv("REASONING_CORE_URL_TIMEOUT", "30"))
 
+# Server settings (local-first default; override to expose the API)
+HOST = os.getenv("REASONING_CORE_HOST", "127.0.0.1")
+PORT = int(os.getenv("REASONING_CORE_PORT", "8000"))
+
 # Security settings
-AUTH_ENABLED = os.getenv("REASONING_CORE_AUTH_ENABLED", "true").lower() in ("true", "1", "yes")
+# Authentication is off by default (local single-user mode). The server binds
+# to localhost by default; enable authentication and configure API keys before
+# exposing it beyond the local machine.
+AUTH_ENABLED = os.getenv("REASONING_CORE_AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
 API_KEY_HEADER = "X-API-Key"
 JWT_SECRET_KEY = os.getenv("REASONING_CORE_JWT_SECRET", os.getenv("REASONING_CORE_SECRET_KEY", ""))
 JWT_ALGORITHM = "HS256"

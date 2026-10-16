@@ -15,18 +15,21 @@ from reasoning_core.web.config import API_KEY_HEADER, AUTH_ENABLED, JWT_ALGORITH
 bearer_scheme = HTTPBearer(auto_error=False)
 api_key_scheme = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
-# API Keys (load from environment or generate dev key)
+# API keys (load from environment). When authentication is explicitly enabled
+# but no keys are configured, fall back to a generated development key so that
+# local authenticated testing is possible; the key is printed once so the
+# operator can use it, and it changes on every restart.
 API_KEYS: set = set()
 api_keys_env = os.getenv("REASONING_CORE_API_KEYS", "")
 if api_keys_env:
     API_KEYS = set(key.strip() for key in api_keys_env.split(",") if key.strip())
-else:
-    # Generate a development key if none configured
+elif AUTH_ENABLED:
     dev_key = os.getenv("REASONING_CORE_DEV_KEY")
     if not dev_key:
         dev_key = secrets.token_urlsafe(32)
-        print(f"⚠️  No API keys configured. Using development key: {dev_key}")
-        print("⚠️  Set REASONING_CORE_API_KEYS environment variable for production!")
+        print("⚠️  Authentication is enabled but no API keys are configured.")
+        print(f"⚠️  Generated development key: {dev_key}")
+        print("⚠️  This key changes on every restart; set REASONING_CORE_API_KEYS for a stable key.")
     API_KEYS.add(dev_key)
 
 
@@ -81,17 +84,10 @@ def verify_jwt_token(token: str) -> Dict:
         raise AuthenticationError("JWT secret key not configured")
 
     try:
-        if hasattr(jwt, "decode"):
-            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        else:
-            # Fallback for PyJWT
-            from jwt import decode
-
-            payload = decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        return payload
-    except Exception as e:
-        if "expired" in str(e).lower() or isinstance(e, getattr(jwt, "ExpiredSignatureError", Exception)):
-            raise AuthenticationError("Token has expired")
+        return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise AuthenticationError("Token has expired")
+    except Exception:
         raise AuthenticationError("Invalid token")
 
 

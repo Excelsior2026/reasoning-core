@@ -4,6 +4,12 @@
 > previously be imported (fixed in the P0 pull request). Treat the "✅" marks
 > below as intended controls that still require verification, not as a
 > verified security posture.
+>
+> **Update (2026-10-16):** The authentication, SSRF, path-traversal, and
+> local-first-default controls below are now enforced in code with regression
+> tests (see the `Security` section in `CHANGELOG.md`). Authentication is off
+> by default for local use; enable `REASONING_CORE_AUTH_ENABLED=true` and set
+> `REASONING_CORE_API_KEYS` before exposing the server beyond localhost.
 
 This document summarizes all the security and code quality fixes implemented in the reasoning-core web API.
 
@@ -12,11 +18,11 @@ This document summarizes all the security and code quality fixes implemented in 
 ### 1. Authentication & Authorization ✅
 - **File**: `src/reasoning_core/web/auth.py`
 - **Changes**:
-  - Added JWT token authentication
-  - Added API key authentication
-  - Implemented optional authentication (can be disabled via config)
-  - Added authentication middleware
-  - Configurable via `REASONING_CORE_AUTH_ENABLED` environment variable
+  - JWT token authentication (PyJWT) and API key authentication
+  - State-changing endpoints require credentials when authentication is
+    enabled; read-only endpoints use optional authentication
+  - Configurable via `REASONING_CORE_AUTH_ENABLED` (default: `false`, a
+    local-mode default; enable it before exposing the server)
 
 ### 2. File Size Limits & Validation ✅
 - **Files**: `src/reasoning_core/web/validation.py`, `src/reasoning_core/web/config.py`
@@ -34,6 +40,11 @@ This document summarizes all the security and code quality fixes implemented in 
   - Blocks localhost unless explicitly allowed
   - Domain whitelisting support via `REASONING_CORE_ALLOWED_DOMAINS`
   - Configurable via `REASONING_CORE_ALLOW_PRIVATE_IPS`
+  - Hostnames are resolved and every resolved address is validated
+    (DNS-rebinding style names pointing at private addresses are rejected)
+  - Redirect targets are re-validated before being followed
+  - Alternate IP encodings (decimal, hex, octal, shortened forms) are
+    normalized before validation
 
 ### 4. Memory Leak Prevention ✅
 - **File**: `src/reasoning_core/web/server.py`
@@ -119,19 +130,22 @@ This document summarizes all the security and code quality fixes implemented in 
 The following new dependencies were added to the project's `[web]` extra in `pyproject.toml` (installed with `pip install -e ".[web]"`; these were originally tracked in `requirements-web.txt`, since removed):
 
 - `aiofiles>=23.0.0` - Async file operations
-- `pyjwt>=2.8.0` - JWT token handling
-- `python-jose[cryptography]>=3.3.0` - Additional JWT support
+- `pyjwt>=2.8.0` - JWT token handling (the single JWT implementation)
+- `pypdf>=4.0.0` - PDF text extraction (replaces the deprecated `PyPDF2`)
 
 ## Environment Variables
 
 All configuration can be done via environment variables:
 
 ### Security
-- `REASONING_CORE_AUTH_ENABLED` - Enable/disable authentication (default: true)
+- `REASONING_CORE_AUTH_ENABLED` - Enable/disable authentication (default:
+  false; local mode — set to true before exposing the server)
 - `REASONING_CORE_API_KEYS` - Comma-separated list of API keys
 - `REASONING_CORE_JWT_SECRET` - JWT secret key
 - `REASONING_CORE_ALLOW_PRIVATE_IPS` - Allow private IPs in URLs (default: false)
 - `REASONING_CORE_ALLOWED_DOMAINS` - Comma-separated whitelist of allowed domains
+- `REASONING_CORE_HOST` - Server bind address (default: 127.0.0.1)
+- `REASONING_CORE_PORT` - Server bind port (default: 8000)
 
 ### File Upload
 - `REASONING_CORE_MAX_FILE_SIZE_MB` - Max file size in MB (default: 50)
@@ -167,13 +181,14 @@ All configuration can be done via environment variables:
 
 ## Production Deployment Notes
 
-1. **Set strong API keys**: `export REASONING_CORE_API_KEYS="key1,key2,key3"`
-2. **Set JWT secret**: `export REASONING_CORE_JWT_SECRET="your-secret-key"`
-3. **Configure CORS**: `export REASONING_CORE_CORS_ORIGINS="https://yourdomain.com"`
-4. **Set log file**: `export REASONING_CORE_LOG_FILE="/var/log/reasoning-core.log"`
-5. **Use Redis for rate limiting** (currently in-memory, replace with Redis in production)
-6. **Use database for task storage** (currently in-memory, replace with DB in production)
-7. **Set up file cleanup cron job** (or rely on periodic cleanup)
+1. **Enable authentication**: `export REASONING_CORE_AUTH_ENABLED=true`
+2. **Set strong API keys**: `export REASONING_CORE_API_KEYS="key1,key2,key3"`
+3. **Set JWT secret**: `export REASONING_CORE_JWT_SECRET="your-secret-key"`
+4. **Configure CORS**: `export REASONING_CORE_CORS_ORIGINS="https://yourdomain.com"`
+5. **Set log file**: `export REASONING_CORE_LOG_FILE="/var/log/reasoning-core.log"`
+6. **Use Redis for rate limiting** (currently in-memory, replace with Redis in production)
+7. **Use database for task storage** (currently in-memory, replace with DB in production)
+8. **Set up file cleanup cron job** (or rely on periodic cleanup)
 
 ## Migration Guide
 

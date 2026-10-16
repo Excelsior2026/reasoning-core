@@ -1,11 +1,18 @@
 """Website scraping utilities."""
 
 import ipaddress
-import re
+import socket
 from typing import Dict, Optional
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from reasoning_core.web.config import ALLOW_PRIVATE_IPS, ALLOWED_URL_DOMAINS, URL_SCRAPE_TIMEOUT
+from reasoning_core.web.validation import URL_PATTERN
+
+# Maximum number of redirects followed while scraping a page.
+MAX_REDIRECTS = 5
+
+# HTTP status codes treated as redirect responses.
+_REDIRECT_STATUSES = (301, 302, 303, 307, 308)
 
 
 class ScrapingError(Exception):
@@ -14,8 +21,111 @@ class ScrapingError(Exception):
     pass
 
 
+def _parse_literal_ip(hostname):  # noqa: C901
+    """Parse a hostname as an IP address literal, including inet_aton forms.
+
+    ``urlparse`` hands back the raw hostname, so ``http://2130706433/`` and
+    ``http://0x7f000001/`` both reach the SSRF check as plain strings. This
+    helper recognizes dotted-quad IPv4/IPv6 literals plus the alternate
+    spellings ``inet_aton`` accepts (decimal integer, hex, octal, and
+    shortened forms such as ``127.1``) so they cannot bypass the check.
+
+    Args:
+        hostname: Hostname to parse
+
+    Returns:
+        An ``ipaddress`` address object, or None when the hostname is not a
+        numeric address literal.
+    """
+    try:
+        return ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+
+    # inet_aton-style IPv4: one to four dot-separated parts; the final part
+    # fills all remaining bits. Each part may be decimal, octal (leading 0),
+    # or hexadecimal (0x prefix).
+    parts = hostname.split(".")
+    if not 1 <= len(parts) <= 4 or not all(parts):
+        return None
+
+    values = []
+    for part in parts:
+        try:
+            if part.lower().startswith("0x"):
+                values.append(int(part, 16))
+            elif len(part) > 1 and part.startswith("0"):
+                values.append(int(part, 8))
+            else:
+                values.append(int(part, 10))
+        except ValueError:
+            return None
+
+    widths = {1: (32,), 2: (8, 24), 3: (8, 8, 16), 4: (8, 8, 8, 8)}[len(values)]
+    if any(value < 0 or value >= 1 << width for value, width in zip(values, widths)):
+        return None
+
+    packed = 0
+    for value, width in zip(values, widths):
+        packed = (packed << width) | value
+    return ipaddress.IPv4Address(packed)
+
+
+def _resolve_host_ips(hostname):
+    """Resolve a hostname to the IP addresses it refers to.
+
+    Numeric literals (including the alternate spellings handled by
+    ``_parse_literal_ip``) bypass DNS; everything else is resolved with the
+    system resolver. All returned addresses are checked by the caller, because
+    a name can map to both public and private addresses.
+
+    Args:
+        hostname: Hostname to resolve
+
+    Returns:
+        List of ``ipaddress`` address objects (IPv4-mapped IPv6 addresses are
+        normalized to their IPv4 form).
+    """
+    literal = _parse_literal_ip(hostname)
+    if literal is not None:
+        if isinstance(literal, ipaddress.IPv6Address) and literal.ipv4_mapped is not None:
+            return [literal.ipv4_mapped]
+        return [literal]
+
+    addresses = []
+    for family, _type, _proto, _canonname, sockaddr in socket.getaddrinfo(hostname, None):
+        if family not in (socket.AF_INET, socket.AF_INET6):
+            continue
+        address = ipaddress.ip_address(sockaddr[0].split("%", 1)[0])
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+            address = address.ipv4_mapped
+        addresses.append(address)
+    return addresses
+
+
+def _is_blocked_ip(ip) -> bool:
+    """Return True when an address must never be fetched.
+
+    Multicast and the unspecified address are always blocked. Private,
+    loopback, link-local, and reserved ranges are blocked unless
+    ``REASONING_CORE_ALLOW_PRIVATE_IPS`` explicitly opts in.
+    """
+    if ip.is_multicast or ip.is_unspecified:
+        return True
+    if ALLOW_PRIVATE_IPS:
+        return False
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+        return True
+    return not ip.is_global
+
+
 def is_safe_url(url: str) -> bool:  # noqa: C901
     """Check if URL is safe to fetch (prevent SSRF attacks).
+
+    Validates the scheme and an optional domain allowlist, then *resolves the
+    hostname* and rejects the URL when any resolved address is private or
+    reserved. Numeric host forms are normalized first, so
+    ``http://2130706433/`` is recognized as ``127.0.0.1``.
 
     Args:
         url: URL to check
@@ -25,46 +135,79 @@ def is_safe_url(url: str) -> bool:  # noqa: C901
     """
     try:
         parsed = urlparse(url)
-        hostname = parsed.hostname
+    except ValueError:
+        return False
 
-        if not hostname:
+    # Block file:// and other dangerous schemes
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    hostname = (parsed.hostname or "").strip().rstrip(".").lower()
+    if not hostname:
+        return False
+
+    # Block localhost hostnames unless explicitly allowed (resolving the name
+    # below would also catch these, but the explicit check is clearer)
+    if not ALLOW_PRIVATE_IPS and hostname == "localhost":
+        return False
+
+    # Check domain whitelist if configured
+    if ALLOWED_URL_DOMAINS:
+        allowed_domains = [domain.strip().lower() for domain in ALLOWED_URL_DOMAINS if domain.strip()]
+        if not any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains):
             return False
 
-        # Check if hostname is an IP address
-        try:
-            ip = ipaddress.ip_address(hostname)
-            # Block private/localhost IPs unless explicitly allowed
-            if not ALLOW_PRIVATE_IPS:
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                    return False
-            # Block multicast and broadcast
-            if ip.is_multicast or (hasattr(ip, "is_global") and not ip.is_global):
-                return False
-        except ValueError:
-            # Hostname, not an IP - check domain whitelist if configured
-            if ALLOWED_URL_DOMAINS:
-                # Check if hostname matches any allowed domain
-                if hostname not in ALLOWED_URL_DOMAINS:
-                    # Also check subdomains
-                    for allowed_domain in ALLOWED_URL_DOMAINS:
-                        if hostname.endswith(f".{allowed_domain}"):
-                            return True
-                    return False
-
-        # Block localhost hostnames unless explicitly allowed
-        if not ALLOW_PRIVATE_IPS:
-            localhost_names = ["localhost", "127.0.0.1", "0.0.0.0", "::1"]
-            if hostname.lower() in localhost_names:
-                return False
-
-        # Block file:// and other dangerous schemes
-        if parsed.scheme not in ("http", "https"):
-            return False
-
-        return True
-
+    # Resolve the hostname and validate every address it can reach. A name
+    # that cannot be resolved is rejected: it cannot be verified as safe.
+    try:
+        addresses = _resolve_host_ips(hostname)
     except Exception:
         return False
+
+    if not addresses:
+        return False
+
+    return all(not _is_blocked_ip(address) for address in addresses)
+
+
+def _fetch_page(url: str, timeout: int):
+    """Fetch a URL, validating every redirect hop before following it.
+
+    ``requests`` follows redirects invisibly by default, which would skip the
+    SSRF check for redirect targets; redirects are therefore followed manually
+    for at most ``MAX_REDIRECTS`` hops, and each hop is validated first.
+
+    Args:
+        url: URL to fetch
+        timeout: Request timeout in seconds
+
+    Returns:
+        The final response object
+
+    Raises:
+        ScrapingError: If a hop is not allowed or there are too many redirects
+    """
+    import requests
+
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    current_url = url
+
+    for _ in range(MAX_REDIRECTS + 1):
+        if not is_safe_url(current_url):
+            raise ScrapingError(f"URL not allowed: {current_url}. Private/internal URLs are blocked for security.")
+
+        response = requests.get(current_url, headers=headers, timeout=timeout, allow_redirects=False)
+
+        if response.status_code in _REDIRECT_STATUSES:
+            location = response.headers.get("location")
+            if not location:
+                raise ScrapingError("Redirect response without a Location header")
+            current_url = urljoin(current_url, location)
+            continue
+
+        return response
+
+    raise ScrapingError(f"Too many redirects (maximum {MAX_REDIRECTS})")
 
 
 def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:  # noqa: C901
@@ -89,30 +232,15 @@ def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:  
         timeout = URL_SCRAPE_TIMEOUT
 
     # Validate URL format
-    url_pattern = re.compile(
-        r"^https?://"  # http:// or https://
-        r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|"  # domain...
-        r"localhost|"  # localhost...
-        r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # ...or ip
-        r"(?::\d+)?"  # optional port
-        r"(?:/?|[/?]\S+)$",
-        re.IGNORECASE,
-    )
-
-    if not url_pattern.match(url):
+    if not URL_PATTERN.match(url):
         raise ValueError(f"Invalid URL format: {url}")
 
-    # Check for SSRF vulnerabilities
-    if not is_safe_url(url):
-        raise ScrapingError(f"URL not allowed: {url}. Private/internal URLs are blocked for security.")
-
     try:
-        import requests
         from bs4 import BeautifulSoup
 
-        # Make request
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        response = requests.get(url, headers=headers, timeout=timeout)
+        # Make request (SSRF protection is applied to the URL and to every
+        # redirect hop inside _fetch_page)
+        response = _fetch_page(url, timeout)
         response.raise_for_status()
 
         # Parse HTML
@@ -153,10 +281,12 @@ def scrape_website(url: str, timeout: Optional[int] = None) -> Dict[str, str]:  
             },
         }
 
+    except ScrapingError:
+        raise
     except ImportError as e:
         missing = []
         try:
-            import requests
+            import requests  # noqa: F401  # imported only to test availability
         except ImportError:
             missing.append("requests")
 
