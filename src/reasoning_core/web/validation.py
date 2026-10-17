@@ -10,6 +10,20 @@ from pydantic import BaseModel, Field, field_validator
 
 from reasoning_core.web.config import ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, MAX_TEXT_LENGTH
 
+# Pattern for acceptable http(s) URLs (domain, localhost, IPv6 literal, or IPv4
+# address; optional port, path, query, or fragment). Shared with the scraper so
+# both layers accept the same URL shapes.
+URL_PATTERN = re.compile(
+    r"^https?://"  # http:// or https://
+    r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}\.?|"  # domain
+    r"localhost|"  # localhost
+    r"\[[0-9A-Fa-f:]+\]|"  # IPv6 literal
+    r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # IP address
+    r"(?::\d+)?"  # optional port
+    r"(?:/?|[/?#]\S+)$",  # optional path, query, or fragment
+    re.IGNORECASE,
+)
+
 
 class AnalysisRequest(BaseModel):
     """Request model for text analysis with validation."""
@@ -69,18 +83,7 @@ class URLRequest(BaseModel):
             raise ValueError("URL must be a non-empty string")
 
         # Basic URL validation
-        url_pattern = re.compile(
-            r"^https?://"  # http:// or https://
-            r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}\.?|"  # domain
-            r"localhost|"  # localhost
-            r"\[[0-9A-Fa-f:]+\]|"  # IPv6 literal
-            r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"  # IP address
-            r"(?::\d+)?"  # optional port
-            r"(?:/?|[/?#]\S+)$",  # optional path, query, or fragment
-            re.IGNORECASE,
-        )
-
-        if not url_pattern.match(v):
+        if not URL_PATTERN.match(v):
             raise ValueError("Invalid URL format")
 
         return v.strip()

@@ -56,11 +56,11 @@ def parse_document(file_path: str, file_type: Optional[str] = None) -> Dict[str,
 def _parse_pdf(file_path: str) -> Dict[str, str]:
     """Parse PDF file."""
     try:
-        import PyPDF2
+        import pypdf
 
         text_content = []
         with open(file_path, "rb") as file:
-            pdf_reader = PyPDF2.PdfReader(file)
+            pdf_reader = pypdf.PdfReader(file)
             num_pages = len(pdf_reader.pages)
 
             for page_num in range(num_pages):
@@ -77,7 +77,7 @@ def _parse_pdf(file_path: str) -> Dict[str, str]:
             },
         }
     except ImportError:
-        raise DocumentParserError("PyPDF2 not installed. Install with: pip install PyPDF2")
+        raise DocumentParserError("pypdf not installed. Install with: pip install pypdf")
     except Exception as e:
         raise DocumentParserError(f"PDF parsing failed: {e}") from e
 

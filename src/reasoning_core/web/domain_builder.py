@@ -1,6 +1,7 @@
 """Custom domain builder functionality."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +20,28 @@ except ImportError:
         confidence: float = 0.5
         context: Optional[str] = None
         position: int = 0
+
+
+# Domain IDs are used as file names (``{id}.json``) inside the domains
+# directory, so only a conservative character set may reach the filesystem.
+DOMAIN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def validate_domain_id(domain_id: Any) -> str:
+    """Validate a custom-domain identifier.
+
+    Args:
+        domain_id: Candidate identifier
+
+    Returns:
+        The validated identifier
+
+    Raises:
+        ValueError: If the identifier is not a valid domain id
+    """
+    if not isinstance(domain_id, str) or not DOMAIN_ID_PATTERN.fullmatch(domain_id):
+        raise ValueError("Invalid domain id: must be 1-64 characters of letters, digits, underscores, or hyphens")
+    return domain_id
 
 
 class CustomDomain(BaseDomain):
@@ -132,7 +155,6 @@ class CustomDomain(BaseDomain):
             for pattern in patterns:
                 # Try to extract literal terms from regex patterns
                 # This is simplified - in practice would parse regex better
-                import re
 
                 # Remove regex anchors and special chars, keep word chars
                 terms.extend(re.findall(r"\b\w+\b", pattern))
@@ -165,8 +187,15 @@ class DomainBuilder:
 
         Returns:
             Domain ID
+
+        Raises:
+            ValueError: If the domain id or configuration is invalid
         """
-        domain_id = config.get("id") or self._generate_domain_id(config.get("name", "custom"))
+        domain_id = config.get("id")
+        if domain_id is None:
+            domain_id = self._generate_domain_id(config.get("name", "custom"))
+        else:
+            domain_id = validate_domain_id(domain_id)
 
         # Validate configuration
         self._validate_config(config)
@@ -186,7 +215,11 @@ class DomainBuilder:
 
         Returns:
             Domain configuration or None
+
+        Raises:
+            ValueError: If domain_id is invalid
         """
+        domain_id = validate_domain_id(domain_id)
         domain_file = self.domains_dir / f"{domain_id}.json"
 
         if not domain_file.exists():
@@ -230,7 +263,11 @@ class DomainBuilder:
 
         Returns:
             True if deleted successfully
+
+        Raises:
+            ValueError: If domain_id is invalid
         """
+        domain_id = validate_domain_id(domain_id)
         domain_file = self.domains_dir / f"{domain_id}.json"
 
         if domain_file.exists():
@@ -264,7 +301,10 @@ class DomainBuilder:
 
         timestamp = str(int(time.time()))
         name_hash = hashlib.md5(name.encode()).hexdigest()[:8]
-        return f"{name.lower().replace(' ', '_')}_{name_hash}_{timestamp}"
+        # Keep the generated id within the 64-character limit and allow only
+        # characters that are safe in file names.
+        slug = re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").lower()[:40] or "custom"
+        return validate_domain_id(f"{slug}_{name_hash}_{timestamp}")
 
     def _validate_config(self, config: Dict[str, Any]) -> None:
         """Validate domain configuration.

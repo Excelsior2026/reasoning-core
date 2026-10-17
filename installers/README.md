@@ -70,7 +70,7 @@ Both installers automatically:
 2. **Install Python packages:**
    - pydantic, fastapi, uvicorn
    - requests, beautifulsoup4
-   - PyPDF2, python-docx
+   - pypdf, python-docx
    - reasoning-core itself
 
 3. **Check and install Node.js** (if not present)

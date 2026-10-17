@@ -82,11 +82,10 @@ Write-Host "📦 Installing Python dependencies..." -ForegroundColor Cyan
     python-multipart>=0.0.6 `
     requests>=2.31.0 `
     beautifulsoup4>=4.12.0 `
-    PyPDF2>=3.0.0 `
+    pypdf>=4.0.0 `
     python-docx>=1.0.0 `
     aiofiles>=23.0.0 `
-    pyjwt>=2.8.0 `
-    "python-jose[cryptography]>=3.3.0"
+    pyjwt>=2.8.0
 
 # Install reasoning-core itself if source exists
 if (Test-Path (Join-Path $InstallDir "src")) {
