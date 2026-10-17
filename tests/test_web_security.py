@@ -87,6 +87,26 @@ results["analyze_url_no_credentials"] = client.post(
 results["analyze_batch_no_credentials"] = client.post(
     "/api/analyze/batch", json={"items": [{"text": "hello"}], "domain": "generic"}
 ).status_code
+results["analyze_file_no_credentials"] = client.post(
+    "/api/analyze/file",
+    files={"file": ("probe.txt", b"probe text", "text/plain")},
+).status_code
+# With a valid key the handler runs; an invalid domain then fails validation
+# (400) without processing or storing an upload.
+results["analyze_file_with_key"] = client.post(
+    "/api/analyze/file",
+    files={"file": ("probe.txt", b"probe text", "text/plain")},
+    data={"domain": "not-a-domain"},
+    headers={"X-API-Key": "test-key-123"},
+).status_code
+results["delete_domain_no_credentials"] = client.delete(
+    "/api/domains/probe-domain-does-not-exist-9f3a"
+).status_code
+# With a valid key the handler runs; a missing domain returns 404.
+results["delete_domain_with_key"] = client.delete(
+    "/api/domains/probe-domain-does-not-exist-9f3a", headers={"X-API-Key": "test-key-123"}
+).status_code
+results["progress_no_credentials"] = client.get("/api/progress/probe-task").status_code
 results["health_no_credentials"] = client.get("/api/health").status_code
 results["list_domains_no_credentials"] = client.get("/api/domains").status_code
 print(json.dumps(results))
@@ -113,7 +133,12 @@ def test_auth_enforcement_when_enabled():
     assert results["analyze_text_no_credentials"] == 401
     assert results["analyze_url_no_credentials"] == 401
     assert results["analyze_batch_no_credentials"] == 401
-    # Read-only endpoints stay anonymous.
+    assert results["analyze_file_no_credentials"] == 401
+    assert results["analyze_file_with_key"] == 400  # auth accepted; domain rejected
+    assert results["delete_domain_no_credentials"] == 401
+    assert results["delete_domain_with_key"] == 404  # auth accepted; domain missing
+    assert results["progress_no_credentials"] == 401
+    # Dependency-free / read-only endpoints stay anonymous.
     assert results["health_no_credentials"] == 200
     assert results["list_domains_no_credentials"] == 200
 
@@ -210,7 +235,7 @@ def test_domain_api_rejects_traversal_and_round_trips(tmp_path, monkeypatch):
 
 
 def test_ssrf_blocks_private_and_obfuscated_literals():
-    """Private targets and alternate numeric host encodings are rejected."""
+    """Private targets are rejected."""
     blocked = [
         "http://127.0.0.1/",
         "http://127.0.0.1:8000/",
@@ -220,13 +245,29 @@ def test_ssrf_blocks_private_and_obfuscated_literals():
         "http://10.0.0.1/",
         "http://192.168.1.1/",
         "http://0.0.0.0/",
-        "http://2130706433/",  # decimal 127.0.0.1
-        "http://0x7f000001/",  # hex 127.0.0.1
-        "http://0177.0.0.1/",  # octal 127.0.0.1
-        "http://127.1/",  # shortened 127.0.0.1
         "http://[::ffff:127.0.0.1]/",  # IPv4-mapped loopback
     ]
     for url in blocked:
+        assert is_safe_url(url) is False, url
+
+
+def test_ssrf_rejects_legacy_numeric_host_spellings():
+    """Legacy numeric spellings are rejected outright (review round 1, F-1).
+
+    The platform resolver may read these differently from any local parsing
+    (e.g. ``010.0.0.1``: octal for ``inet_aton``, decimal for the darwin and
+    glibc resolvers), so the guard refuses to guess and rejects them all.
+    """
+    rejected = [
+        "http://2130706433/",  # decimal integer
+        "http://0x7f000001/",  # hex
+        "http://0177.0.0.1/",  # leading zero
+        "http://010.0.0.1/",  # resolver reads 10.0.0.1
+        "http://0127.0.0.1/",  # resolver reads 127.0.0.1
+        "http://0172.16.0.1/",  # resolver reads 172.16.0.1
+        "http://127.1/",  # shortened
+    ]
+    for url in rejected:
         assert is_safe_url(url) is False, url
 
 
@@ -303,6 +344,26 @@ def test_scrape_rejects_obfuscated_redirect_target(monkeypatch):
     def fake_get(url, **kwargs):
         calls.append(url)
         return _FakeResponse(302, {"location": "http://2130706433/"}, url=url)
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    with pytest.raises(ScrapingError):
+        scrape_website("https://93.184.216.34/")
+
+    assert calls == ["https://93.184.216.34/"]
+
+
+def test_scrape_rejects_leading_zero_redirect_target(monkeypatch):
+    """Leading-zero redirect targets are rejected (review round 1, F-1).
+
+    On this platform the resolver reads ``0127.0.0.1`` as 127.0.0.1, so the
+    hop must be refused before any request is made to it.
+    """
+    calls = []
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        return _FakeResponse(302, {"location": "http://0127.0.0.1:8080/latest/meta-data/"}, url=url)
 
     monkeypatch.setattr("requests.get", fake_get)
 

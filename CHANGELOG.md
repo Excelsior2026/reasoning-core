@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - State-changing endpoints (`/api/analyze/*`, `/api/cache/clear`,
-  `/api/domains` create/delete/test) now require credentials when
-  `REASONING_CORE_AUTH_ENABLED=true`; read-only endpoints remain anonymous.
-  Authentication was previously declared but never enforced; it is now off by
-  default (local mode) and must be turned on together with
-  `REASONING_CORE_API_KEYS` before the server is exposed beyond localhost
+  `/api/domains` create/delete/test) and the progress stream
+  (`/api/progress/{task_id}`, which consumes tracker state) now require
+  credentials when `REASONING_CORE_AUTH_ENABLED=true`; read-only endpoints
+  remain anonymous. Authentication was previously declared but never
+  enforced; it is now off by default (local mode) and must be turned on
+  together with `REASONING_CORE_API_KEYS` before the server is exposed
+  beyond localhost
 - Domain ids are validated against `^[A-Za-z0-9_-]{1,64}$` before any
   filesystem access; previously `POST /api/domains` with an id like `../../x`
   wrote (and the domain routes could read or delete) files outside the
@@ -21,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSRF guard now resolves hostnames and validates every resolved address (a
   name that resolves to a private address is rejected), validates each
   redirect hop before following it (redirects were previously followed
-  unvalidated), and normalizes alternate IP encodings such as
-  `http://2130706433/`, hex, octal, and shortened forms
+  unvalidated), and rejects legacy numeric host spellings outright
+  (`http://2130706433/`, hex, octal/leading-zero, shortened forms), since
+  the platform resolver may read them differently from any local parsing
 - The web server binds `127.0.0.1` by default (override with
   `REASONING_CORE_HOST` / `REASONING_CORE_PORT`) instead of `0.0.0.0`; the
   generated development API key is printed only when authentication is

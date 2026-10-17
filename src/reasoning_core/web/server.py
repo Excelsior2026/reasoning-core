@@ -459,8 +459,11 @@ async def test_domain(
 
 
 @app.get("/api/progress/{task_id}")
-async def stream_progress(task_id: str):
+async def stream_progress(task_id: str, auth: Dict = Depends(authenticate)):
     """Stream progress updates via Server-Sent Events.
+
+    Requires credentials when authentication is enabled: the handler consumes
+    tracker state when the stream ends and holds a long-lived connection.
 
     Args:
         task_id: Task identifier

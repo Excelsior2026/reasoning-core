@@ -43,8 +43,9 @@ This document summarizes all the security and code quality fixes implemented in 
   - Hostnames are resolved and every resolved address is validated
     (DNS-rebinding style names pointing at private addresses are rejected)
   - Redirect targets are re-validated before being followed
-  - Alternate IP encodings (decimal, hex, octal, shortened forms) are
-    normalized before validation
+  - Legacy numeric host spellings (decimal, hex, octal/leading-zero,
+    shortened forms) are rejected outright, because the platform resolver
+    may read them differently from any local parsing
 
 ### 4. Memory Leak Prevention ✅
 - **File**: `src/reasoning_core/web/server.py`

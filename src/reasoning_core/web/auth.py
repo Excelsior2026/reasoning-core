@@ -62,7 +62,9 @@ def verify_api_key(api_key: Optional[str]) -> bool:
     if not api_key:
         return False
 
-    return api_key in API_KEYS
+    # Constant-time comparison to avoid timing side channels.
+    candidate = api_key.encode("utf-8")
+    return any(secrets.compare_digest(candidate, key.encode("utf-8")) for key in API_KEYS)
 
 
 def verify_jwt_token(token: str) -> Dict:

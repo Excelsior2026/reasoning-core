@@ -21,63 +21,62 @@ class ScrapingError(Exception):
     pass
 
 
-def _parse_literal_ip(hostname):  # noqa: C901
-    """Parse a hostname as an IP address literal, including inet_aton forms.
+def _parse_literal_ip(hostname):
+    """Parse a hostname as a canonical IP address literal.
 
-    ``urlparse`` hands back the raw hostname, so ``http://2130706433/`` and
-    ``http://0x7f000001/`` both reach the SSRF check as plain strings. This
-    helper recognizes dotted-quad IPv4/IPv6 literals plus the alternate
-    spellings ``inet_aton`` accepts (decimal integer, hex, octal, and
-    shortened forms such as ``127.1``) so they cannot bypass the check.
+    Only canonical forms accepted by ``ipaddress`` are recognized. Legacy
+    numeric spellings (decimal integer, hex, octal/leading-zero, and
+    shortened forms such as ``127.1``) are deliberately *not* interpreted
+    here: the platform resolver that performs the actual connection may read
+    them differently, so ``_is_ambiguous_numeric_host`` rejects them outright
+    instead.
 
     Args:
         hostname: Hostname to parse
 
     Returns:
         An ``ipaddress`` address object, or None when the hostname is not a
-        numeric address literal.
+        canonical IP literal.
     """
     try:
         return ipaddress.ip_address(hostname)
     except ValueError:
-        pass
+        return None
 
-    # inet_aton-style IPv4: one to four dot-separated parts; the final part
-    # fills all remaining bits. Each part may be decimal, octal (leading 0),
-    # or hexadecimal (0x prefix).
+
+def _is_ambiguous_numeric_host(hostname: str) -> bool:
+    """Return True for non-canonical numeric host spellings.
+
+    Examples: ``010.0.0.1``, ``0x7f000001``, ``2130706433``, ``127.1``.
+    These are rejected outright by ``is_safe_url`` (issue #6: alternate
+    encodings are "normalized or rejected"): the platform resolver used for
+    the connection may interpret them differently from any local parsing, so
+    approving one based on a local reading could send the request to a
+    private address.
+    """
     parts = hostname.split(".")
-    if not 1 <= len(parts) <= 4 or not all(parts):
-        return None
+    if not 1 <= len(parts) <= 4:
+        return False
 
-    values = []
-    for part in parts:
-        try:
-            if part.lower().startswith("0x"):
-                values.append(int(part, 16))
-            elif len(part) > 1 and part.startswith("0"):
-                values.append(int(part, 8))
-            else:
-                values.append(int(part, 10))
-        except ValueError:
-            return None
+    def _is_numeric_part(part: str) -> bool:
+        if not part or not part.isascii():
+            return False
+        if part.isdigit():
+            return True
+        if part[:2].lower() == "0x" and len(part) > 2:
+            return all(char in "0123456789abcdefABCDEF" for char in part[2:])
+        return False
 
-    widths = {1: (32,), 2: (8, 24), 3: (8, 8, 16), 4: (8, 8, 8, 8)}[len(values)]
-    if any(value < 0 or value >= 1 << width for value, width in zip(values, widths)):
-        return None
-
-    packed = 0
-    for value, width in zip(values, widths):
-        packed = (packed << width) | value
-    return ipaddress.IPv4Address(packed)
+    return all(_is_numeric_part(part) for part in parts)
 
 
 def _resolve_host_ips(hostname):
     """Resolve a hostname to the IP addresses it refers to.
 
-    Numeric literals (including the alternate spellings handled by
-    ``_parse_literal_ip``) bypass DNS; everything else is resolved with the
-    system resolver. All returned addresses are checked by the caller, because
-    a name can map to both public and private addresses.
+    Canonical IP literals bypass DNS; everything else is resolved with the
+    system resolver — the same one the connection will use. All returned
+    addresses are checked by the caller, because a name can map to both
+    public and private addresses.
 
     Args:
         hostname: Hostname to resolve
@@ -124,8 +123,9 @@ def is_safe_url(url: str) -> bool:  # noqa: C901
 
     Validates the scheme and an optional domain allowlist, then *resolves the
     hostname* and rejects the URL when any resolved address is private or
-    reserved. Numeric host forms are normalized first, so
-    ``http://2130706433/`` is recognized as ``127.0.0.1``.
+    reserved. Legacy numeric host spellings (decimal integer, hex,
+    octal/leading-zero, shortened forms) are rejected outright, because the
+    platform resolver may read them differently from any local parsing.
 
     Args:
         url: URL to check
@@ -144,6 +144,14 @@ def is_safe_url(url: str) -> bool:  # noqa: C901
 
     hostname = (parsed.hostname or "").strip().rstrip(".").lower()
     if not hostname:
+        return False
+
+    # Reject legacy numeric spellings (decimal integer, hex,
+    # octal/leading-zero, shortened) outright: the platform resolver may read
+    # them differently from any local parsing, which could otherwise route
+    # the request to a private address (issue #6: alternate IP encodings are
+    # "normalized or rejected").
+    if _parse_literal_ip(hostname) is None and _is_ambiguous_numeric_host(hostname):
         return False
 
     # Block localhost hostnames unless explicitly allowed (resolving the name
