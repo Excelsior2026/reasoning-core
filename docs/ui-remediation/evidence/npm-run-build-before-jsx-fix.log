@@ -1,0 +1,32 @@
+npm notice run reasoning-core-web@0.1.0 build
+npm notice run vite build
+vite v4.5.14 building for production...
+transforming...
+✓ 22 modules transformed.
+✓ built in 2.30s
+[vite:esbuild] Transform failed with 1 error:
+/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/src/components/DetailedView.jsx:116:8: ERROR: Expected ")" but found "{"
+file: /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/src/components/DetailedView.jsx:116:8
+
+Expected ")" but found "{"
+114|                <ConceptCard key={idx} concept={concept} index={idx} />
+115|              ))}
+116|          {/* Relationships already handled above */}
+   |          ^
+117|            {activeTab === 'chains' && (
+118|              <div className="w-full">
+
+error during build:
+Error: Transform failed with 1 error:
+/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/src/components/DetailedView.jsx:116:8: ERROR: Expected ")" but found "{"
+    at failureErrorWithLog (/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/node_modules/esbuild/lib/main.js:1649:15)
+    at /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/node_modules/esbuild/lib/main.js:847:29
+    at responseCallbacks.<computed> (/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/node_modules/esbuild/lib/main.js:703:9)
+    at handleIncomingPacket (/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/node_modules/esbuild/lib/main.js:762:9)
+    at Socket.readFromStdout (/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/web/node_modules/esbuild/lib/main.js:679:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+exit_code=1

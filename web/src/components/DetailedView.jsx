@@ -112,9 +112,10 @@ export function DetailedView({ results, searchResults = null }) {
 
             return displayConcepts?.map((concept, idx) => (
               <ConceptCard key={idx} concept={concept} index={idx} />
-            ))}
+            ))
+          })()}
         {/* Relationships already handled above */}
-          {activeTab === 'chains' && (
+        {activeTab === 'chains' && (
             <div className="w-full">
               <ReasoningChainView chains={reasoning_chains || []} />
             </div>

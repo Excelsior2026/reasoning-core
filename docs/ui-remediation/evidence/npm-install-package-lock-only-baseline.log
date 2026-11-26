@@ -1,0 +1,5 @@
+npm error code ETARGET
+npm error notarget No matching version found for cytoscape-react@^2.1.0.
+npm error notarget In most cases you or one of your dependencies are requesting a package version that doesn't exist.
+npm error A complete log of this run can be found in: /Users/temporary/.npm/_logs/2026-11-26T17_31_19_010Z-debug-0.log
+exit_code=1
