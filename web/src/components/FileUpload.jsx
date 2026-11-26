@@ -49,11 +49,9 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
         },
       })
 
-      const newTaskId = response.data.task_id
-      setTaskId(newTaskId)
-
-      // Poll for results (fallback if SSE doesn't work)
-      await pollResults(newTaskId)
+      // ProgressBar owns the single SSE/polling stream for this task.
+      // Do not poll here as well: that duplicates result callbacks.
+      setTaskId(response.data.task_id)
     } catch (err) {
       onError(err.response?.data?.detail || err.message || 'Upload failed')
       setShowProgress(false)
@@ -68,40 +66,6 @@ export function FileUpload({ onResults, onError, onStartLoading, loading }) {
   const handleProgressError = (err) => {
     setShowProgress(false)
     onError(err)
-  }
-
-  const pollResults = async (taskId) => {
-    const maxAttempts = 60
-    let attempts = 0
-
-    const poll = async () => {
-      try {
-        const response = await axios.get(`/api/results/${taskId}`)
-        const data = response.data
-
-        if (data.status === 'completed') {
-          onResults(data)
-          return
-        }
-
-        if (data.status === 'error') {
-          onError(data.error || 'Analysis failed')
-          return
-        }
-
-        // Still processing
-        attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000) // Poll every 2 seconds
-        } else {
-          onError('Analysis timed out')
-        }
-      } catch (err) {
-        onError(err.response?.data?.detail || err.message || 'Failed to get results')
-      }
-    }
-
-    poll()
   }
 
   return (

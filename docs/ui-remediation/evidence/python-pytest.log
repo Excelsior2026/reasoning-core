@@ -1,0 +1,5 @@
+ImportError while loading conftest '/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/tests/conftest.py'.
+tests/conftest.py:5: in <module>
+    from reasoning_core.extractors.concept_extractor import Concept
+E   ModuleNotFoundError: No module named 'reasoning_core'
+exit_code=4

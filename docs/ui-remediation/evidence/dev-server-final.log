@@ -1,0 +1,6 @@
+npm notice run reasoning-core-web@0.1.0 dev
+npm notice run vite --host 127.0.0.1 --port 3100 --strictPort
+
+  VITE v4.5.14  ready in 786 ms
+
+  ➜  Local:   http://127.0.0.1:3100/

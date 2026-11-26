@@ -1,0 +1,52 @@
+/Users/temporary/Library/Python/3.13/lib/python/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.13.17, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core
+configfile: pytest.ini
+testpaths: tests
+plugins: hypothesis-6.170.15, cov-7.1.0, anyio-4.16.0, asyncio-1.4.1.post1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 73 items
+
+tests/test_api.py ........                                               [ 10%]
+tests/test_async_api.py .................                                [ 34%]
+tests/test_business_domain.py .....                                      [ 41%]
+tests/test_concept_extractor.py ........                                 [ 52%]
+tests/test_integration.py .....                                          [ 58%]
+tests/test_knowledge_graph.py ...........                                [ 73%]
+tests/test_medical_domain.py ......                                      [ 82%]
+tests/test_reasoning_chain_builder.py ......                             [ 90%]
+tests/test_relationship_mapper.py .......                                [100%]
+
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.13.17-final-0 _______________
+
+Name                                                       Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------------
+src/reasoning_core/__init__.py                                14      0   100%
+src/reasoning_core/api/__init__.py                             0      0   100%
+src/reasoning_core/api/async_reasoning_api.py                112     10    91%   90, 126-128, 150-151, 243, 319-321, 332
+src/reasoning_core/api/reasoning_api.py                      116     33    72%   19-21, 44, 53-67, 107-110, 123-124, 139-143, 151-155, 159-164, 192, 228-230, 260, 274
+src/reasoning_core/extractors/__init__.py                      0      0   100%
+src/reasoning_core/extractors/concept_extractor.py            83     37    55%   61, 73-75, 83-92, 153-179, 191-202
+src/reasoning_core/extractors/reasoning_chain_builder.py      95      6    94%   60, 62, 75-77, 145, 177
+src/reasoning_core/extractors/relationship_mapper.py          76     14    82%   65, 67, 80-82, 90-99, 186, 190, 194
+src/reasoning_core/graph/__init__.py                           0      0   100%
+src/reasoning_core/graph/knowledge_graph.py                  165     71    57%   59, 61, 67, 100, 111, 125, 128, 135, 208-228, 236-288, 296-327, 356, 365
+src/reasoning_core/llm/__init__.py                             3      0   100%
+src/reasoning_core/llm/base.py                                17      4    76%   20, 36, 57, 74
+src/reasoning_core/llm/ollama_service.py                     125    110    12%   34-38, 42-65, 80-111, 126-201, 221-322, 340
+src/reasoning_core/plugins/__init__.py                         0      0   100%
+src/reasoning_core/plugins/base_domain.py                     27      9    67%   17, 29, 42, 55, 67, 76, 84, 92, 103
+src/reasoning_core/plugins/business_domain.py                 73      1    99%   128
+src/reasoning_core/plugins/medical_domain.py                  99      2    98%   136, 140
+src/reasoning_core/plugins/meeting_domain.py                 108     88    19%   96, 100-118, 122-139, 144-171, 175-177, 183-195, 201-227, 233-252, 256-274, 278, 282
+----------------------------------------------------------------------------------------
+TOTAL                                                       1113    385    65%
+Coverage HTML written to dir htmlcov
+Required test coverage of 65.0% reached. Total coverage: 65.41%
+============================== 73 passed in 2.89s ==============================
+exit_code=0

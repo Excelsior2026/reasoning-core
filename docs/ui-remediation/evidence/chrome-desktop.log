@@ -1,0 +1,15 @@
+[72379:12567172:1126/093644.093674:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72379:12567172:1126/093644.113540:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72379:12567172:1126/093644.113736:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72379:12567172:1126/093644.119725:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+Trying to load the allocator multiple times. This is *not* supported.
+[72379:12567172:1126/093644.710113:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72379:12567172:1126/093644.719396:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72379:12567172:1126/093644.720926:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[72375:12567101:1126/093842.069158:ERROR:content/browser/network_service_instance_impl.cc:656] Network service crashed or was terminated, restarting service.
+[72375:12567101:1126/093842.079244:ERROR:components/headless/command_handler/headless_command_handler.cc:395] Abnormal renderer termination.
+[72375:12567101:1126/093842.096380:ERROR:content/browser/gpu/gpu_process_host.cc:1042] GPU process exited unexpectedly: exit_code=15
+[73495:12577186:1126/093842.119066:ERROR:base/apple/mach_port_rendezvous_mac.cc:256] bootstrap_look_up com.google.Chrome.MachPortRendezvousServer.72375: Unknown service name (1102)
+[73495:12577186:1126/093842.119341:ERROR:base/memory/shared_memory_switch.cc:261] No rendezvous client, terminating process (parent died?)
+[73496:12577187:1126/093842.298545:ERROR:base/apple/mach_port_rendezvous_mac.cc:256] bootstrap_look_up com.google.Chrome.MachPortRendezvousServer.72375: Unknown service name (1102)
+[73496:12577187:1126/093842.299181:ERROR:base/memory/shared_memory_switch.cc:261] No rendezvous client, terminating process (parent died?)

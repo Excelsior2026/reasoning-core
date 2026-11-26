@@ -1,0 +1,7 @@
+[76100:12589734:1126/094150.968573:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76100:12589734:1126/094150.984904:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76100:12589734:1126/094150.985336:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76100:12589734:1126/094150.985653:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+Trying to load the allocator multiple times. This is *not* supported.
+2728 bytes written to file /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/docs/ui-remediation/evidence/chrome-probe.png
+exit_code=0

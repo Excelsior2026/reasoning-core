@@ -1,114 +1,47 @@
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useEffect, useRef, useState } from 'react'
+import { createTaskStream } from '../taskProgress'
 
 export function ProgressBar({ taskId, onComplete, onError }) {
   const [progress, setProgress] = useState(0)
   const [stage, setStage] = useState('initializing')
   const [message, setMessage] = useState('Starting...')
+  const onCompleteRef = useRef(onComplete)
+  const onErrorRef = useRef(onError)
 
   useEffect(() => {
-    if (!taskId) return
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
-    const eventSource = new EventSource(`/api/progress/${taskId}`)
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        setProgress(data.progress || 0)
-        setStage(data.stage || 'processing')
-        setMessage(data.message || '')
+  // taskId is the only dependency: stream lifecycle must not restart when
+  // progress state or parent-provided callback identities change.
+  useEffect(() => {
+    if (!taskId) return undefined
 
-        // Handle completion
-        if (data.done || data.progress >= 100 || data.status === 'completed') {
-          eventSource.close()
-          if (onComplete) {
-            // Fetch final results
-            setTimeout(() => {
-              axios.get(`/api/results/${taskId}`).then((response) => {
-                if (response.data.status === 'completed') {
-                  onComplete(response.data)
-                } else if (response.data.status === 'error') {
-                  onError(response.data.error || 'Analysis failed')
-                }
-              }).catch((err) => {
-                onError(err.message || 'Failed to get results')
-              })
-            }, 500)
-          }
-        }
+    setProgress(0)
+    setStage('initializing')
+    setMessage('Starting...')
 
-        // Handle errors
-        if (data.status === 'error' || stage === 'error') {
-          eventSource.close()
-          if (onError) {
-            onError(data.error || data.message || 'Analysis failed')
-          }
-        }
-      } catch (err) {
-        console.error('Error parsing progress:', err)
-      }
-    }
+    const stream = createTaskStream({
+      taskId,
+      onProgress: (next) => {
+        setProgress(next.progress)
+        setStage(next.stage)
+        setMessage(next.message)
+      },
+      onComplete: (data) => {
+        onCompleteRef.current?.(data)
+      },
+      onError: (err) => {
+        onErrorRef.current?.(err)
+      },
+    })
 
-    eventSource.onerror = (err) => {
-      console.error('SSE error:', err)
-      eventSource.close()
-      // Fallback to polling if SSE fails
-      pollProgress()
-    }
-
-    // Fallback polling function
-    const pollProgress = async () => {
-      const maxAttempts = 300
-      let attempts = 0
-
-      const poll = async () => {
-        try {
-          const response = await axios.get(`/api/results/${taskId}`)
-          const data = response.data
-
-          if (data.status === 'completed') {
-            setProgress(100)
-            setStage('completed')
-            setMessage('Complete!')
-            if (onComplete) {
-              onComplete(data)
-            }
-            return
-          }
-
-          if (data.status === 'error') {
-            setStage('error')
-            setMessage(data.error || 'Analysis failed')
-            if (onError) {
-              onError(data.error || 'Analysis failed')
-            }
-            return
-          }
-
-          // Still processing
-          attempts++
-          if (attempts < maxAttempts) {
-            setTimeout(poll, 2000)
-          } else {
-            if (onError) {
-              onError('Analysis timed out')
-            }
-          }
-        } catch (err) {
-          console.error('Polling error:', err)
-          if (onError) {
-            onError(err.message || 'Failed to get progress')
-          }
-        }
-      }
-
-      poll()
-    }
-
-    return () => {
-      eventSource.close()
-    }
-  }, [taskId, onComplete, onError, stage])
+    return () => stream.dispose()
+  }, [taskId])
 
   const getStageLabel = (stage) => {
     const labels = {

@@ -1,0 +1,12 @@
+[76678:12592376:1126/094217.153697:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76678:12592376:1126/094217.154725:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76678:12592376:1126/094217.154960:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76678:12592376:1126/094217.179326:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+Trying to load the allocator multiple times. This is *not* supported.
+[76678:12592376:1126/094217.492730:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76678:12592376:1126/094217.503983:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76678:12592376:1126/094217.520107:ERROR:ui/display/mac/cv_display_link_mac.mm:191] CVDisplayLinkCreateWithCGDisplay failed. CVReturn: -6670
+[76673:12592309:1126/094325.946375:ERROR:components/headless/command_handler/headless_command_handler.cc:395] Abnormal renderer termination.
+[76673:12592309:1126/094325.963870:ERROR:content/browser/gpu/gpu_process_host.cc:1042] GPU process exited unexpectedly: exit_code=15
+[77653:12596739:1126/094326.003625:ERROR:base/apple/mach_port_rendezvous_mac.cc:256] bootstrap_look_up com.google.Chrome.MachPortRendezvousServer.76673: Unknown service name (1102)
+[77653:12596739:1126/094326.003932:ERROR:base/memory/shared_memory_switch.cc:261] No rendezvous client, terminating process (parent died?)

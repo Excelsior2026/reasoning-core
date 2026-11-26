@@ -1,0 +1,66 @@
+/Users/temporary/Library/Python/3.13/lib/python/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.13.17, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core
+configfile: pytest.ini
+testpaths: tests
+plugins: hypothesis-6.170.15, cov-7.1.0, anyio-4.16.0, asyncio-1.4.1.post1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 73 items / 3 errors
+
+==================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_web_cleanup.py __________________
+ImportError while importing test module '/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/tests/test_web_cleanup.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/local/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_web_cleanup.py:23: in <module>
+    from reasoning_core.web import server  # noqa: E402  # isort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/reasoning_core/web/server.py:14: in <module>
+    import aiofiles
+E   ModuleNotFoundError: No module named 'aiofiles'
+_________________ ERROR collecting tests/test_web_security.py __________________
+ImportError while importing test module '/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/tests/test_web_security.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/local/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_web_security.py:29: in <module>
+    from reasoning_core.web import rate_limit, server  # noqa: E402  # isort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/reasoning_core/web/server.py:14: in <module>
+    import aiofiles
+E   ModuleNotFoundError: No module named 'aiofiles'
+___________________ ERROR collecting tests/test_web_smoke.py ___________________
+ImportError while importing test module '/Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/tests/test_web_smoke.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/local/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_web_smoke.py:19: in <module>
+    from reasoning_core.web.server import app  # noqa: E402  # isort: skip
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/reasoning_core/web/server.py:14: in <module>
+    import aiofiles
+E   ModuleNotFoundError: No module named 'aiofiles'
+=============================== warnings summary ===============================
+tests/test_web_security.py:27
+  /Users/temporary/ui-ux-review/worktrees/wave1/Excelsior2026__reasoning-core/tests/test_web_security.py:27: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient  # noqa: E402  # isort: skip
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_web_cleanup.py
+ERROR tests/test_web_security.py
+ERROR tests/test_web_smoke.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!
+========================= 1 warning, 3 errors in 4.62s =========================
+exit_code=2
